@@ -28,11 +28,6 @@ export const optionGroups = {
     { value: "classic", label: "Classic", price: 0 },
     { value: "culinary", label: "Culinary", price: -5 },
   ],
-  teaType: [
-    { value: "green", label: "ชาเขียว", price: 0 },
-    { value: "black", label: "ชาดำ", price: 0 },
-    { value: "thai", label: "ชาไทย", price: 0 },
-  ],
   waterSplit: [
     { value: "no", label: "ไม่แยกน้ำ", price: 0 },
     { value: "yes", label: "แยกน้ำ", price: 5 },
@@ -95,11 +90,9 @@ export function getProductById(id) {
 }
 
 export function getGroupLabel(groupId, value) {
-  const group = optionGroups[groupId] || [];
-  return group.find((item) => item.value === value)?.label ?? value;
+  return optionGroups[groupId]?.find((item) => item.value === value)?.label ?? value;
 }
 
 export function getGroupPrice(groupId, value) {
-  const group = optionGroups[groupId] || [];
-  return group.find((item) => item.value === value)?.price ?? 0;
+  return optionGroups[groupId]?.find((item) => item.value === value)?.price ?? 0;
 }

@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#app,
+#admin-app {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-brand-50 text-stone-900 antialiased;
+  background:
+    radial-gradient(circle at top left, rgba(192, 107, 52, 0.18), transparent 30%),
+    radial-gradient(circle at top right, rgba(138, 79, 42, 0.14), transparent 26%),
+    linear-gradient(180deg, #fff9f2 0%, #fbf4ee 100%);
+}
+
+::selection {
+  @apply bg-brand-500 text-white;
+}
