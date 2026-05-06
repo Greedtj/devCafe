@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DevCafe Admin</title>
+    <meta name="description" content="Admin console for menu, options, and order history." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero hero-admin">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h1>จัดการเมนู ราคา และประวัติการสั่งซื้อ</h1>
+          <p class="hero-copy">
+            หน้านี้ออกแบบให้คุมข้อมูลสำคัญน้อยชิ้นที่สุด: เมนู, ตัวเลือก, ราคา, และรายการออเดอร์
+          </p>
+        </div>
+        <a class="ghost-link" href="./index.html">กลับหน้าลูกค้า</a>
+      </header>
+
+      <main class="layout admin-layout">
+        <section class="panel panel-wide">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">ตั้งค่าเมนู</p>
+              <h2>สินค้าและตัวเลือก</h2>
+            </div>
+            <button class="primary-btn" id="sync-menu">ดึงข้อมูลจาก backend</button>
+          </div>
+          <div id="admin-menu" class="admin-stack"></div>
+        </section>
+
+        <aside class="panel">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">ประวัติ</p>
+              <h2>ออเดอร์ล่าสุด</h2>
+            </div>
+          </div>
+          <div id="admin-orders" class="admin-stack"></div>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./src/admin.js"></script>
+  </body>
+</html>
