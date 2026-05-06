@@ -33,10 +33,10 @@ export async function bootstrapApi(user) {
     };
   }
 
-  const url = new URL(apiBaseUrl);
+  const url = buildRequestUrl(apiBaseUrl);
   url.searchParams.set("action", "bootstrap");
   if (user?.userId) url.searchParams.set("userId", user.userId);
-  const response = await fetch(url, { credentials: "omit" });
+  const response = await fetch(url.toString(), { credentials: "omit" });
   return response.json();
 }
 
@@ -79,6 +79,13 @@ export async function saveAdminState(payload) {
     body: JSON.stringify({ action: "saveAdminState", payload }),
   });
   return response.json();
+}
+
+function buildRequestUrl(apiBaseUrl) {
+  if (/^https?:\/\//i.test(apiBaseUrl)) {
+    return new URL(apiBaseUrl);
+  }
+  return new URL(apiBaseUrl, window.location.origin);
 }
 
 export function createLocalOrder(payload) {

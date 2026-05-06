@@ -48,11 +48,13 @@ Create `frontend/.env` from `frontend/.env.example` and fill these values:
 - `VITE_LIFF_ID`  
   Use the LIFF ID created in the LINE Developers console.
 - `VITE_API_BASE_URL`  
-  Use the deployed Google Apps Script web app URL, ending with `/exec`.
+  Use `/api/apps-script` in Vercel so the frontend talks to the same origin.
 - `VITE_PAYMENT_QR_URL`  
   Use a public image URL for the shop QR payment code.
 - `VITE_BASE_PATH`  
   Use `/` for Vercel root hosting.
+- `APPS_SCRIPT_WEBAPP_URL`  
+  Use the deployed Google Apps Script web app URL, ending with `/exec`. This is used by the Vercel proxy function.
 
 If a value is empty, the app falls back to local demo mode for that part.
 
@@ -96,6 +98,7 @@ If a value is empty, the app falls back to local demo mode for that part.
    - `VITE_API_BASE_URL`
    - `VITE_PAYMENT_QR_URL`
    - `VITE_BASE_PATH=/`
+   - `APPS_SCRIPT_WEBAPP_URL`
 7. Deploy.
 
 ## Why Vercel
