@@ -48,7 +48,6 @@ function bootstrap_() {
 }
 
 function createOrder_(payload) {
-  const ss = SpreadsheetApp.getActive();
   const ordersSheet = ensureSheet_(SHEET_NAMES.orders, [
     "orderId",
     "createdAt",
@@ -147,6 +146,24 @@ function saveAdminState_(payload) {
   return { ok: true };
 }
 
+function getSpreadsheet_() {
+  const props = PropertiesService.getScriptProperties();
+  const spreadsheetId = props.getProperty("SPREADSHEET_ID");
+  if (spreadsheetId) {
+    return SpreadsheetApp.openById(spreadsheetId);
+  }
+
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) {
+    props.setProperty("SPREADSHEET_ID", active.getId());
+    return active;
+  }
+
+  const created = SpreadsheetApp.create("DevCafe Orders");
+  props.setProperty("SPREADSHEET_ID", created.getId());
+  return created;
+}
+
 function readMenu_() {
   const rows = readSheetObjects_(SHEET_NAMES.menu).map((row) => ({
     ...row,
@@ -221,7 +238,7 @@ function buildFlexMessage_(order) {
 }
 
 function ensureSheet_(name, headers) {
-  const ss = SpreadsheetApp.getActive();
+  const ss = getSpreadsheet_();
   let sheet = ss.getSheetByName(name);
   if (!sheet) sheet = ss.insertSheet(name);
   if (sheet.getLastRow() === 0 && headers.length) {
@@ -241,7 +258,7 @@ function writeTable_(name, headers, rows) {
 }
 
 function readSheetObjects_(name) {
-  const ss = SpreadsheetApp.getActive();
+  const ss = getSpreadsheet_();
   const sheet = ss.getSheetByName(name);
   if (!sheet || sheet.getLastRow() < 2) return [];
   const rows = sheet.getDataRange().getValues();
@@ -264,7 +281,6 @@ function getSetting_(key) {
 }
 
 function upsertSetting_(key, value) {
-  const ss = SpreadsheetApp.getActive();
   const sheet = ensureSheet_(SHEET_NAMES.settings, ["key", "value"]);
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i += 1) {

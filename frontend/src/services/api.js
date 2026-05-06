@@ -78,7 +78,11 @@ export async function saveAdminState(payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "saveAdminState", payload }),
   });
-  return response.json();
+  const data = await response.json();
+  if (!response.ok || data?.ok === false) {
+    throw new Error(data?.error || `Request failed with status ${response.status}`);
+  }
+  return data;
 }
 
 function buildRequestUrl(apiBaseUrl) {

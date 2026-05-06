@@ -26,11 +26,13 @@ onMounted(async () => {
 async function save() {
   saving.value = true;
   try {
-    await store.saveAdmin({
+    const result = await store.saveAdmin({
       menu: store.menu,
       settings: store.settings,
     });
-    alert("บันทึกข้อมูลแล้ว");
+    alert(result?.ok ? "บันทึกข้อมูลแล้ว" : "บันทึกไม่สำเร็จ");
+  } catch (error) {
+    alert(`บันทึกไม่สำเร็จ: ${error.message}`);
   } finally {
     saving.value = false;
   }
