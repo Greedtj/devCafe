@@ -254,112 +254,120 @@ async function tryInitLiff() {
       </div>
     </section>
 
-    <dialog
-      v-if="store.selectedProduct"
-      :open="productOpen"
-      class="fixed inset-0 z-50 w-full max-w-3xl rounded-[1.75rem] border border-stone-200 bg-white p-0 shadow-soft backdrop:bg-stone-900/50"
+    <div
+      v-if="store.selectedProduct && productOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 px-4 py-6"
+      @click.self="productOpen = false"
     >
-      <form method="dialog" class="p-5">
-        <div class="flex items-start justify-between gap-3 border-b border-stone-200 pb-4">
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ปรับแต่งเมนู</p>
-            <h3 class="mt-1 text-2xl font-bold">{{ store.selectedProduct.name }}</h3>
-            <p class="mt-1 text-sm text-stone-500">{{ store.selectedProduct.description }}</p>
+      <div class="w-full max-w-3xl rounded-[1.75rem] border border-stone-200 bg-white p-0 shadow-soft">
+        <div class="p-5">
+          <div class="flex items-start justify-between gap-3 border-b border-stone-200 pb-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ปรับแต่งเมนู</p>
+              <h3 class="mt-1 text-2xl font-bold">{{ store.selectedProduct.name }}</h3>
+              <p class="mt-1 text-sm text-stone-500">{{ store.selectedProduct.description }}</p>
+            </div>
+            <button class="h-10 w-10 rounded-full border border-stone-200" type="button" @click="productOpen = false">
+              ×
+            </button>
           </div>
-          <button class="h-10 w-10 rounded-full border border-stone-200" value="cancel" @click="productOpen = false">
-            ×
-          </button>
-        </div>
 
-        <div class="mt-5 grid gap-4 sm:grid-cols-2">
-          <label v-for="field in store.selectedProduct.fields" :key="field" class="grid gap-2">
-            <span class="text-sm font-semibold text-stone-700">
-              {{ fieldLabels[field] || field }}
-            </span>
-            <select
-              v-model="store.draft.options[field]"
-              class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
-            >
-              <option
-                v-for="option in store.getOptionGroupOptions(field)"
-                :key="option.value"
-                :value="option.value"
+          <div class="mt-5 grid gap-4 sm:grid-cols-2">
+            <label v-for="field in store.selectedProduct.fields" :key="field" class="grid gap-2">
+              <span class="text-sm font-semibold text-stone-700">
+                {{ fieldLabels[field] || field }}
+              </span>
+              <select
+                v-model="store.draft.options[field]"
+                class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
               >
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
+                <option
+                  v-for="option in store.getOptionGroupOptions(field)"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
 
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-sm font-semibold text-stone-700">รายละเอียดเพิ่มเติม</span>
-            <textarea
-              v-model="store.draft.note"
-              rows="3"
-              class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
-              placeholder="เช่น หวานน้อย แยกน้ำแข็ง"
-            ></textarea>
-          </label>
+            <label class="grid gap-2 sm:col-span-2">
+              <span class="text-sm font-semibold text-stone-700">รายละเอียดเพิ่มเติม</span>
+              <textarea
+                v-model="store.draft.note"
+                rows="3"
+                class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
+                placeholder="เช่น หวานน้อย แยกน้ำแข็ง"
+              ></textarea>
+            </label>
 
-          <label class="grid gap-2 max-w-40">
-            <span class="text-sm font-semibold text-stone-700">จำนวนแก้ว</span>
-            <input
-              v-model.number="store.draft.qty"
-              type="number"
-              min="1"
-              class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
-            />
-          </label>
-        </div>
-
-        <div class="mt-5 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
-          <button class="rounded-full border border-stone-200 px-4 py-3 font-semibold" value="cancel" @click="productOpen = false">
-            ยกเลิก
-          </button>
-          <button
-            class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white"
-            @click.prevent="store.addDraftToCart(); productOpen = false"
-          >
-            ใส่ตะกร้า
-          </button>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog
-      :open="checkoutOpen"
-      class="fixed inset-0 z-50 w-full max-w-4xl rounded-[1.75rem] border border-stone-200 bg-white p-0 shadow-soft backdrop:bg-stone-900/50"
-    >
-      <div class="p-5">
-        <div class="flex items-start justify-between gap-3 border-b border-stone-200 pb-4">
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ยืนยันออเดอร์</p>
-            <h3 class="mt-1 text-2xl font-bold">สรุปรายการก่อนส่ง</h3>
+            <label class="grid gap-2 max-w-40">
+              <span class="text-sm font-semibold text-stone-700">จำนวนแก้ว</span>
+              <input
+                v-model.number="store.draft.qty"
+                type="number"
+                min="1"
+                class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
+              />
+            </label>
           </div>
-          <button class="h-10 w-10 rounded-full border border-stone-200" @click="checkoutOpen = false">×</button>
-        </div>
 
-        <div class="mt-5 grid gap-3">
-          <article
-            v-for="item in store.cart"
-            :key="`${item.productId}-${item.productName}`"
-            class="rounded-2xl border border-stone-200 bg-stone-50 p-4"
-          >
-            <h4 class="font-bold">{{ item.productName }}</h4>
-            <p class="mt-1 text-sm text-stone-500">{{ item.qty }} x ฿{{ Math.round(item.price / item.qty) }}</p>
-            <p class="mt-1 text-sm leading-6 text-stone-600">{{ item.summary }}</p>
-          </article>
-        </div>
-
-        <div class="mt-5 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
-          <button class="rounded-full border border-stone-200 px-4 py-3 font-semibold" @click="checkoutOpen = false">
-            กลับ
-          </button>
-          <button class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white" @click.prevent="confirmCheckout">
-            ยืนยันส่งออเดอร์
-          </button>
+          <div class="mt-5 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
+            <button class="rounded-full border border-stone-200 px-4 py-3 font-semibold" type="button" @click="productOpen = false">
+              ยกเลิก
+            </button>
+            <button
+              class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white"
+              type="button"
+              @click="store.addDraftToCart(); productOpen = false"
+            >
+              ใส่ตะกร้า
+            </button>
+          </div>
         </div>
       </div>
-    </dialog>
+    </div>
+
+    <div
+      v-if="checkoutOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 px-4 py-6"
+      @click.self="checkoutOpen = false"
+    >
+      <div class="w-full max-w-4xl rounded-[1.75rem] border border-stone-200 bg-white p-0 shadow-soft">
+        <div class="p-5">
+          <div class="flex items-start justify-between gap-3 border-b border-stone-200 pb-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ยืนยันออเดอร์</p>
+              <h3 class="mt-1 text-2xl font-bold">สรุปรายการก่อนส่ง</h3>
+            </div>
+            <button class="h-10 w-10 rounded-full border border-stone-200" type="button" @click="checkoutOpen = false">
+              ×
+            </button>
+          </div>
+
+          <div class="mt-5 grid gap-3">
+            <article
+              v-for="item in store.cart"
+              :key="`${item.productId}-${item.productName}`"
+              class="rounded-2xl border border-stone-200 bg-stone-50 p-4"
+            >
+              <h4 class="font-bold">{{ item.productName }}</h4>
+              <p class="mt-1 text-sm text-stone-500">{{ item.qty }} x ฿{{ Math.round(item.price / item.qty) }}</p>
+              <p class="mt-1 text-sm leading-6 text-stone-600">{{ item.summary }}</p>
+            </article>
+          </div>
+
+          <div class="mt-5 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
+            <button class="rounded-full border border-stone-200 px-4 py-3 font-semibold" type="button" @click="checkoutOpen = false">
+              กลับ
+            </button>
+            <button class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white" type="button" @click="confirmCheckout">
+              ยืนยันส่งออเดอร์
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <section v-if="store.responsePreview" class="mt-6 rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
       <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ผลลัพธ์</p>
