@@ -50,7 +50,7 @@ async function tryInitLiff() {
   const liffId = import.meta.env.VITE_LIFF_ID?.trim();
   if (!liffId) return null;
   try {
-    await liff.init({ liffId, withLoginOnExternalBrowser: true });
+    await liff.init({ liffId });
     if (!liff.isLoggedIn()) return null;
     const profile = await liff.getProfile();
     return profile;
