@@ -31,7 +31,7 @@ export async function bootstrapApi(user) {
   if (user?.displayName) url.searchParams.set("displayName", user.displayName);
   if (user?.pictureUrl) url.searchParams.set("pictureUrl", user.pictureUrl);
   const response = await fetch(url.toString(), { credentials: "omit" });
-  return response.json();
+  return parseApiResponse(response);
 }
 
 export async function fetchMenuApi() {
@@ -49,7 +49,7 @@ export async function fetchMenuApi() {
   const url = buildRequestUrl(apiBaseUrl);
   url.searchParams.set("action", "menu");
   const response = await fetch(url.toString(), { credentials: "omit" });
-  return response.json();
+  return parseApiResponse(response);
 }
 
 export async function fetchOrdersApi(userId = "") {
@@ -66,7 +66,7 @@ export async function fetchOrdersApi(userId = "") {
   url.searchParams.set("action", "orders");
   if (userId) url.searchParams.set("userId", userId);
   const response = await fetch(url.toString(), { credentials: "omit" });
-  return response.json();
+  return parseApiResponse(response);
 }
 
 export async function submitOrder(payload) {
@@ -84,12 +84,13 @@ export async function submitOrder(payload) {
     };
   }
 
-  const response = await fetch(apiBaseUrl, {
+  const response = await fetch(buildRequestUrl(apiBaseUrl).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "omit",
     body: JSON.stringify({ action: "createOrder", payload }),
   });
-  return response.json();
+  return parseApiResponse(response);
 }
 
 export async function saveAdminState(payload) {
@@ -100,12 +101,13 @@ export async function saveAdminState(payload) {
     return { ok: true, source: "local" };
   }
 
-  const response = await fetch(apiBaseUrl, {
+  const response = await fetch(buildRequestUrl(apiBaseUrl).toString(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "omit",
     body: JSON.stringify({ action: "saveAdminState", payload }),
   });
-  const data = await response.json();
+  const data = await parseApiResponse(response);
   if (!response.ok || data?.ok === false) {
     throw new Error(data?.error || `Request failed with status ${response.status}`);
   }
@@ -117,6 +119,24 @@ function buildRequestUrl(apiBaseUrl) {
     return new URL(apiBaseUrl);
   }
   return new URL(apiBaseUrl, window.location.origin);
+}
+
+async function parseApiResponse(response) {
+  const text = await response.text();
+  let data = null;
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    const preview = text.replace(/\s+/g, " ").trim().slice(0, 140);
+    throw new Error(preview || `Request failed with status ${response.status}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error || `Request failed with status ${response.status}`);
+  }
+
+  return data;
 }
 
 export function createLocalOrder(payload) {

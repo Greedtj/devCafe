@@ -58,22 +58,26 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  const body = JSON.parse(e?.postData?.contents || "{}");
-  const action = String(body.action || "").toLowerCase();
+  try {
+    const body = JSON.parse(e?.postData?.contents || "{}");
+    const action = String(body.action || "").toLowerCase();
 
-  if (action === "createorder") {
-    return json_(createOrder_(body.payload || {}));
+    if (action === "createorder") {
+      return json_(createOrder_(body.payload || {}));
+    }
+
+    if (action === "saveadminstate") {
+      return json_(saveAdminState_(body.payload || {}));
+    }
+
+    if (action === "resetdemodata") {
+      return json_(resetDemoData_());
+    }
+
+    return json_({ ok: false, error: "Unknown action" });
+  } catch (error) {
+    return json_({ ok: false, error: error.message });
   }
-
-  if (action === "saveadminstate") {
-    return json_(saveAdminState_(body.payload || {}));
-  }
-
-  if (action === "resetdemodata") {
-    return json_(resetDemoData_());
-  }
-
-  return json_({ ok: false, error: "Unknown action" });
 }
 
 function bootstrap_(user) {
@@ -167,7 +171,7 @@ function createOrder_(payload) {
   };
 
   const flexMessage = buildFlexMessage_(order);
-  const sendResult = sendLineOrderConfirmation_(customer.userId, order);
+  const sendResult = safeSendLineOrderConfirmation_(customer.userId, order);
 
   return {
     ok: true,
@@ -477,6 +481,34 @@ function sendLineOrderConfirmation_(userId, order) {
     ok: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
     statusCode: response.getResponseCode(),
     body: response.getContentText(),
+  };
+}
+
+function safeSendLineOrderConfirmation_(userId, order) {
+  try {
+    return sendLineOrderConfirmation_(userId, order);
+  } catch (error) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: error.message,
+    };
+  }
+}
+
+function authorizeServices_() {
+  const accessToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN") || "missing-token";
+  const response = UrlFetchApp.fetch("https://api.line.me/v2/bot/info", {
+    method: "get",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    muteHttpExceptions: true,
+  });
+
+  return {
+    ok: true,
+    lineStatusCode: response.getResponseCode(),
   };
 }
 
