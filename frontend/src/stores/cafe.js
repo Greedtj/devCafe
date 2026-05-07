@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
-import { categories, getGroupLabel, getGroupPrice, getProductById, optionGroups, products } from "../services/catalog";
+import { categories, optionGroups as fallbackOptionGroups } from "../services/catalog";
 import { bootstrapApi, buildFlexMessage, saveAdminState, submitOrder, defaultSettings } from "../services/api";
 
 const CART_KEY = "devcafe_cart_v2";
@@ -17,9 +17,11 @@ export const useCafeStore = defineStore("cafe", () => {
   });
   const user = ref(loadUser());
   const settings = ref(defaultSettings());
-  const menu = ref(products);
+  const menu = ref([]);
+  const options = ref([]);
   const orders = ref([]);
   const responsePreview = ref(null);
+  const optionGroupMap = computed(() => buildOptionGroupMap(options.value));
 
   const cartTotal = computed(() => cart.value.reduce((sum, item) => sum + item.price, 0));
 
@@ -27,8 +29,9 @@ export const useCafeStore = defineStore("cafe", () => {
     if (lineUser) user.value = lineUser;
     try {
       const data = await bootstrapApi(user.value);
-      if (data.menu?.length) menu.value = normalizeMenu(data.menu);
-      if (data.orders?.length) orders.value = data.orders;
+      if (Array.isArray(data.menu)) menu.value = normalizeMenu(data.menu);
+      if (Array.isArray(data.options)) options.value = normalizeOptions(data.options);
+      if (Array.isArray(data.orders)) orders.value = data.orders;
       if (data.settings) settings.value = data.settings;
       if (data.profile?.displayName) user.value = data.profile;
     } catch (error) {
@@ -52,24 +55,26 @@ export const useCafeStore = defineStore("cafe", () => {
   }
 
   function openProduct(productId) {
-    selectedProduct.value = getProductById(productId);
+    selectedProduct.value = menu.value.find((item) => item.id === productId) || null;
     draft.options = {};
     draft.note = "";
     draft.qty = 1;
     if (selectedProduct.value) {
       selectedProduct.value.fields.forEach((field) => {
-        draft.options[field] = optionGroups[field]?.[0]?.value || "";
+        draft.options[field] = getDefaultOptionValue(field);
       });
     }
   }
 
   function addDraftToCart() {
     if (!selectedProduct.value) return;
-    const price = calculateLineTotal(selectedProduct.value, draft.options, draft.qty);
+    const unitPrice = calculateUnitPrice(selectedProduct.value, draft.options);
+    const price = unitPrice * draft.qty;
     cart.value.push({
       productId: selectedProduct.value.id,
       productName: selectedProduct.value.name,
       qty: draft.qty,
+      unitPrice,
       options: { ...draft.options },
       note: draft.note.trim(),
       summary: buildItemSummary(draft.options, draft.note),
@@ -82,7 +87,7 @@ export const useCafeStore = defineStore("cafe", () => {
     const item = cart.value[index];
     if (!item) return;
     item.qty = Math.max(1, item.qty + delta);
-    item.price = calculateLineTotal(getProductById(item.productId), item.options, item.qty);
+    item.price = Number(item.unitPrice || 0) * item.qty;
     persistCart(cart.value);
   }
 
@@ -98,6 +103,9 @@ export const useCafeStore = defineStore("cafe", () => {
       total: cartTotal.value,
     };
     const result = await submitOrder(payload);
+    if (!result?.ok) {
+      throw new Error(result?.error || "checkout failed");
+    }
     responsePreview.value = result.flexMessage || buildFlexMessage(result.order || payload);
     if (result.order) orders.value.unshift(result.order);
     cart.value = [];
@@ -108,6 +116,7 @@ export const useCafeStore = defineStore("cafe", () => {
   async function saveAdmin(payload) {
     const result = await saveAdminState(payload);
     if (payload.menu) menu.value = normalizeMenu(payload.menu);
+    if (payload.options) options.value = normalizeOptions(payload.options);
     if (payload.settings) settings.value = payload.settings;
     return result;
   }
@@ -120,6 +129,7 @@ export const useCafeStore = defineStore("cafe", () => {
     user,
     settings,
     menu,
+    options,
     orders,
     responsePreview,
     cartTotal,
@@ -132,22 +142,24 @@ export const useCafeStore = defineStore("cafe", () => {
     removeCartItem,
     checkout,
     saveAdmin,
+    getOptionGroupOptions,
+    getOptionLabel,
   };
 });
 
-function calculateLineTotal(product, options, qty) {
+function calculateUnitPrice(product, options) {
   if (!product) return 0;
   let total = product.basePrice;
   Object.entries(options || {}).forEach(([groupId, value]) => {
-    total += getGroupPrice(groupId, value);
+    total += getOptionPrice(groupId, value);
   });
-  return total * qty;
+  return total;
 }
 
 function buildItemSummary(options, note) {
   const parts = [];
   Object.entries(options || {}).forEach(([groupId, value]) => {
-    const label = getGroupLabel(groupId, value);
+    const label = getOptionLabel(groupId, value);
     if (label) parts.push(label);
   });
   if (note) parts.push(note);
@@ -166,6 +178,54 @@ function normalizeMenu(menu) {
           .map((part) => part.trim())
           .filter(Boolean),
   }));
+}
+
+function buildOptionGroupMap(optionRows) {
+  return (optionRows || []).reduce((acc, item) => {
+    if (!item?.groupId) return acc;
+    const groupId = String(item.groupId).trim();
+    if (!groupId) return acc;
+    if (!acc[groupId]) acc[groupId] = [];
+    acc[groupId].push({
+      ...item,
+      value: String(item.value || "").trim(),
+      label: String(item.label || "").trim(),
+      price: Number(item.price || 0),
+      sortOrder: Number(item.sortOrder || 0),
+      enabled: item.enabled !== false && item.enabled !== "false",
+    });
+    acc[groupId].sort((a, b) => a.sortOrder - b.sortOrder);
+    return acc;
+  }, {});
+}
+
+function normalizeOptions(optionRows) {
+  return (optionRows || []).map((item) => ({
+    ...item,
+    groupId: String(item.groupId || "").trim(),
+    value: String(item.value || "").trim(),
+    label: String(item.label || "").trim(),
+    price: Number(item.price || 0),
+    sortOrder: Number(item.sortOrder || 0),
+    enabled: item.enabled !== false && item.enabled !== "false",
+  }));
+}
+
+function getOptionGroupOptions(groupId) {
+  const items = optionGroupMap.value[groupId] || fallbackOptionGroups[groupId] || [];
+  return items.filter((item) => item.enabled !== false);
+}
+
+function getOptionLabel(groupId, value) {
+  return getOptionGroupOptions(groupId).find((item) => item.value === value)?.label ?? value;
+}
+
+function getOptionPrice(groupId, value) {
+  return getOptionGroupOptions(groupId).find((item) => item.value === value)?.price ?? 0;
+}
+
+function getDefaultOptionValue(groupId) {
+  return getOptionGroupOptions(groupId).find((item) => item.enabled !== false)?.value || "";
 }
 
 function loadCart() {

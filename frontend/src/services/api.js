@@ -1,4 +1,4 @@
-import { getGroupLabel, getGroupPrice, getProductById, products } from "./catalog";
+import { getGroupLabel } from "./catalog";
 
 const STORAGE_KEY = "devcafe_cart_v2";
 const SETTINGS_KEY = "devcafe_settings_v2";
@@ -9,16 +9,8 @@ export function getApiBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL?.trim() || "";
 }
 
-export function getPaymentQrUrl() {
-  return import.meta.env.VITE_PAYMENT_QR_URL?.trim() || defaultSettings().paymentQrUrl;
-}
-
 export function defaultSettings() {
-  return {
-    paymentQrUrl:
-      "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=PAYMENT-QR-DEMO",
-    paymentHint: "โหมด demo: ตั้งค่า QR จริงได้ในหน้าแอดมิน",
-  };
+  return {};
 }
 
 export async function bootstrapApi(user) {
@@ -54,8 +46,6 @@ export async function submitOrder(payload) {
       source: "local",
       order,
       flexMessage: buildFlexMessage(order),
-      paymentQrUrl: readLocalSettings().paymentQrUrl,
-      paymentHint: readLocalSettings().paymentHint,
     };
   }
 
@@ -71,7 +61,7 @@ export async function saveAdminState(payload) {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload.settings || defaultSettings()));
-    localStorage.setItem(MENU_KEY, JSON.stringify(payload.menu || products));
+    localStorage.setItem(MENU_KEY, JSON.stringify(payload.menu || []));
     return { ok: true, source: "local" };
   }
 
@@ -96,14 +86,11 @@ function buildRequestUrl(apiBaseUrl) {
 
 export function createLocalOrder(payload) {
   const orderId = `OC${Date.now().toString().slice(-8)}`;
-  const items = (payload.items || []).map((item) => {
-    const product = getProductById(item.productId);
-    return {
-      ...item,
-      productName: product?.name || item.productId,
-      summary: item.summary || buildItemSummary(item),
-    };
-  });
+  const items = (payload.items || []).map((item) => ({
+    ...item,
+    productName: item.productName || item.productId,
+    summary: item.summary || buildItemSummary(item),
+  }));
 
   return {
     orderId,
@@ -112,6 +99,7 @@ export function createLocalOrder(payload) {
     items,
     total: payload.total,
     status: "pending-payment",
+    paymentStatus: "unpaid",
   };
 }
 
@@ -166,7 +154,7 @@ function buildItemSummary(item) {
 
 function readLocalMenu() {
   const raw = localStorage.getItem(MENU_KEY);
-  return raw ? JSON.parse(raw) : products;
+  return raw ? JSON.parse(raw) : [];
 }
 
 function readLocalOrders() {

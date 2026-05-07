@@ -34,56 +34,7 @@ export const optionGroups = {
   ],
 };
 
-export const products = [
-  {
-    id: "coffee-americano",
-    category: "coffee",
-    name: "Americano",
-    description: "กาแฟดำหอมละมุน เลือกระดับคั่วได้",
-    basePrice: 55,
-    fields: ["sweetness", "milk", "roast", "waterSplit"],
-  },
-  {
-    id: "coffee-latte",
-    category: "coffee",
-    name: "Latte",
-    description: "กาแฟนมยอดนิยม ปรับนมและความหวานได้",
-    basePrice: 65,
-    fields: ["sweetness", "milk", "roast", "waterSplit"],
-  },
-  {
-    id: "tea-matcha",
-    category: "tea",
-    name: "Matcha",
-    description: "มัทฉะคุณภาพดี เลือกชนิดมัทฉะและนม",
-    basePrice: 75,
-    fields: ["sweetness", "milk", "matcha", "waterSplit"],
-  },
-  {
-    id: "tea-lemon",
-    category: "tea",
-    name: "Lemon Tea",
-    description: "ชามะนาวสดชื่น ปรับหวานและแยกน้ำได้",
-    basePrice: 50,
-    fields: ["sweetness", "waterSplit"],
-  },
-  {
-    id: "other-cocoa",
-    category: "other",
-    name: "Cocoa",
-    description: "โกโก้เข้มข้น นุ่มละมุน",
-    basePrice: 60,
-    fields: ["sweetness", "milk", "waterSplit"],
-  },
-  {
-    id: "other-bottle",
-    category: "other",
-    name: "Water Bottle",
-    description: "น้ำดื่มขวดเย็น",
-    basePrice: 15,
-    fields: [],
-  },
-];
+export const products = [];
 
 export function getProductById(id) {
   return products.find((item) => item.id === id);

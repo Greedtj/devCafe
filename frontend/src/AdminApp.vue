@@ -1,33 +1,44 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useCafeStore } from "./stores/cafe";
 
 const store = useCafeStore();
 const saving = ref(false);
 
-const paymentQrUrl = computed({
-  get: () => store.settings.paymentQrUrl,
-  set: (value) => {
-    store.settings.paymentQrUrl = value;
-  },
-});
-
-const paymentHint = computed({
-  get: () => store.settings.paymentHint,
-  set: (value) => {
-    store.settings.paymentHint = value;
-  },
-});
-
 onMounted(async () => {
   await store.bootstrap();
 });
+
+function addMenuItem() {
+  store.menu.push({
+    id: `menu-${Date.now()}`,
+    category: "coffee",
+    name: "",
+    description: "",
+    basePrice: 0,
+    enabled: true,
+    fields: [],
+    imageUrl: "",
+  });
+}
+
+function addOptionItem() {
+  store.options.push({
+    groupId: "sweetness",
+    value: "",
+    label: "",
+    price: 0,
+    sortOrder: store.options.length + 1,
+    enabled: true,
+  });
+}
 
 async function save() {
   saving.value = true;
   try {
     const result = await store.saveAdmin({
       menu: store.menu,
+      options: store.options,
       settings: store.settings,
     });
     alert(result?.ok ? "บันทึกข้อมูลแล้ว" : "บันทึกไม่สำเร็จ");
@@ -76,20 +87,23 @@ async function save() {
         </div>
 
         <div class="grid gap-4">
-          <article class="rounded-[1.5rem] border border-stone-200 bg-white p-4">
-            <h3 class="text-lg font-bold">Payment</h3>
-            <p class="mt-1 text-sm text-stone-500">ใช้ QR image URL ที่ลูกค้าสแกนได้</p>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold">QR URL</span>
-                <input v-model="paymentQrUrl" class="rounded-2xl border border-stone-200 px-4 py-3" />
-              </label>
-              <label class="grid gap-2">
-                <span class="text-sm font-semibold">ข้อความกำกับ</span>
-                <input v-model="paymentHint" class="rounded-2xl border border-stone-200 px-4 py-3" />
-              </label>
-            </div>
-          </article>
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-sm text-stone-500">รายการเมนูจะถูกบันทึกลงชีต `menu_master`</div>
+            <button
+              class="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold"
+              type="button"
+              @click="addMenuItem"
+            >
+              + เพิ่มเมนู
+            </button>
+          </div>
+
+          <div
+            v-if="!store.menu.length"
+            class="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 p-4 text-sm leading-6 text-stone-500"
+          >
+            ยังไม่มีเมนูในชีต `menu_master` ตอนนี้ ให้กรอกข้อมูลจริงใน Google Sheet หรือผ่านการเชื่อม admin เพิ่มเติม
+          </div>
 
           <article
             v-for="(item, index) in store.menu"
@@ -98,12 +112,28 @@ async function save() {
           >
             <div class="flex items-start justify-between gap-3">
               <div>
-                <h3 class="text-lg font-bold">{{ item.name }}</h3>
-                <p class="mt-1 text-sm text-stone-500">{{ item.category }} · {{ item.description }}</p>
+                <h3 class="text-lg font-bold">{{ item.name || 'Untitled menu' }}</h3>
+                <p class="mt-1 text-sm text-stone-500">{{ item.category || '-' }} · {{ item.description || '-' }}</p>
               </div>
               <strong class="text-brand-500">฿{{ item.basePrice }}</strong>
             </div>
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">ID</span>
+                <input v-model="item.id" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">หมวดหมู่</span>
+                <input v-model="item.category" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2 sm:col-span-2">
+                <span class="text-sm font-semibold">ชื่อเมนู</span>
+                <input v-model="item.name" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2 sm:col-span-2">
+                <span class="text-sm font-semibold">รายละเอียด</span>
+                <textarea v-model="item.description" rows="2" class="rounded-2xl border border-stone-200 px-4 py-3"></textarea>
+              </label>
               <label class="grid gap-2">
                 <span class="text-sm font-semibold">ราคา</span>
                 <input v-model.number="item.basePrice" type="number" class="rounded-2xl border border-stone-200 px-4 py-3" />
@@ -115,8 +145,95 @@ async function save() {
                   <option :value="false">ปิด</option>
                 </select>
               </label>
+              <label class="grid gap-2 sm:col-span-2">
+                <span class="text-sm font-semibold">Fields</span>
+                <input
+                  :value="Array.isArray(item.fields) ? item.fields.join(',') : item.fields || ''"
+                  class="rounded-2xl border border-stone-200 px-4 py-3"
+                  placeholder="sweetness,milk,roast"
+                  @input="
+                    item.fields = String($event.target.value || '')
+                      .split(',')
+                      .map((part) => part.trim())
+                      .filter(Boolean)
+                  "
+                />
+              </label>
+              <label class="grid gap-2 sm:col-span-2">
+                <span class="text-sm font-semibold">Image URL</span>
+                <input v-model="item.imageUrl" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
             </div>
-            <div class="mt-3 text-xs text-stone-500">Option groups: {{ item.fields.join(', ') || '-' }}</div>
+            <div class="mt-3 text-xs text-stone-500">
+              Option groups: {{ Array.isArray(item.fields) ? item.fields.join(', ') : item.fields || '-' }}
+            </div>
+            <div class="mt-2 text-xs text-stone-500">Row: {{ index + 1 }}</div>
+          </article>
+
+          <div class="mt-2 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">option_master</p>
+              <h3 class="mt-1 text-lg font-bold">ตัวเลือกสินค้า</h3>
+              <p class="mt-1 text-sm text-stone-500">แก้รายการตัวเลือกที่ใช้กับเมนูฝั่งลูกค้าได้จากชีตนี้</p>
+            </div>
+            <button
+              class="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-semibold"
+              type="button"
+              @click="addOptionItem"
+            >
+              + เพิ่ม option
+            </button>
+          </div>
+
+          <div
+            v-if="!store.options.length"
+            class="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 p-4 text-sm leading-6 text-stone-500"
+          >
+            ยังไม่มีข้อมูลในชีต `option_master` กดเพิ่ม option แล้วบันทึกได้เลย
+          </div>
+
+          <article
+            v-for="(item, index) in store.options"
+            :key="`${item.groupId}-${item.value}-${index}`"
+            class="rounded-[1.5rem] border border-stone-200 bg-white p-4"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-lg font-bold">{{ item.label || 'Untitled option' }}</h3>
+                <p class="mt-1 text-sm text-stone-500">{{ item.groupId || '-' }} · {{ item.value || '-' }}</p>
+              </div>
+              <strong class="text-brand-500">฿{{ item.price }}</strong>
+            </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">Group</span>
+                <input v-model="item.groupId" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">Value</span>
+                <input v-model="item.value" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2 sm:col-span-2">
+                <span class="text-sm font-semibold">Label</span>
+                <input v-model="item.label" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">Price</span>
+                <input v-model.number="item.price" type="number" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">Sort order</span>
+                <input v-model.number="item.sortOrder" type="number" class="rounded-2xl border border-stone-200 px-4 py-3" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm font-semibold">Status</span>
+                <select v-model="item.enabled" class="rounded-2xl border border-stone-200 px-4 py-3">
+                  <option :value="true">เปิด</option>
+                  <option :value="false">ปิด</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-2 text-xs text-stone-500">Row: {{ index + 1 }}</div>
           </article>
         </div>
       </section>
@@ -153,7 +270,7 @@ async function save() {
                   class="border-t border-stone-100"
                 >
                   <td class="py-2 pr-2 align-top">{{ item.qty }} x {{ item.productName }}</td>
-                  <td class="py-2 text-stone-500">{{ item.summary }}</td>
+                  <td class="py-2 text-stone-500">{{ item.optionSummary || item.summary || '-' }}</td>
                 </tr>
               </tbody>
             </table>

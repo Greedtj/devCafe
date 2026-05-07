@@ -6,7 +6,6 @@ import { useCafeStore } from "./stores/cafe";
 const store = useCafeStore();
 const checkoutOpen = ref(false);
 const productOpen = ref(false);
-const paymentQrFallback = import.meta.env.VITE_PAYMENT_QR_URL || "";
 
 const categories = computed(() => {
   const items = new Map();
@@ -16,6 +15,14 @@ const categories = computed(() => {
     name: id === "coffee" ? "กาแฟ" : id === "tea" ? "ชา" : "อื่นๆ",
   }));
 });
+
+const fieldLabels = {
+  sweetness: "ระดับความหวาน",
+  milk: "ชนิดนม",
+  roast: "ระดับการคั่ว",
+  matcha: "ชนิดมัทฉะ",
+  waterSplit: "แยกน้ำ",
+};
 
 onMounted(async () => {
   const profile = await tryInitLiff();
@@ -31,8 +38,12 @@ function tryOpenProduct(productId) {
 }
 
 async function confirmCheckout() {
-  await store.checkout();
-  checkoutOpen.value = false;
+  try {
+    await store.checkout();
+    checkoutOpen.value = false;
+  } catch (error) {
+    alert(`ส่งออเดอร์ไม่สำเร็จ: ${error.message}`);
+  }
 }
 
 async function tryInitLiff() {
@@ -95,6 +106,12 @@ async function tryInitLiff() {
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div
+            v-if="!store.menu.filter((menuItem) => menuItem.category === store.category && menuItem.enabled !== false).length"
+            class="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-6 text-stone-500 sm:col-span-2 xl:col-span-3"
+          >
+            ยังไม่มีเมนูในชีต `menu_master` ตอนนี้ ให้ admin ใส่ข้อมูลจริงก่อน ระบบจะดึงมาแสดงอัตโนมัติ
+          </div>
           <article
             v-for="item in store.menu.filter((menuItem) => menuItem.category === store.category && menuItem.enabled !== false)"
             :key="item.id"
@@ -183,12 +200,59 @@ async function tryInitLiff() {
           >
             ยืนยันการสั่ง
           </button>
-          <p class="mt-3 text-sm leading-6 text-stone-500">
-            หลังยืนยัน ระบบจะสร้างเลขออเดอร์และตอบกลับด้วย Flex Message พร้อม QR จ่ายเงิน
-          </p>
+          <p class="mt-3 text-sm leading-6 text-stone-500">หลังยืนยัน ระบบจะสร้างเลขออเดอร์และตอบกลับด้วย Flex Message</p>
         </div>
       </aside>
     </main>
+
+    <section class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+      <div class="rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
+        <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ประวัติ</p>
+        <h2 class="mt-1 text-2xl font-bold">รายการสั่งซื้อของฉัน</h2>
+
+        <div
+          v-if="!store.orders.length"
+          class="mt-4 rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-4 text-sm text-stone-500"
+        >
+          ยังไม่มีประวัติการสั่งซื้อสำหรับ user นี้
+        </div>
+
+        <div v-else class="mt-4 space-y-3">
+          <article
+            v-for="order in store.orders.slice(0, 8)"
+            :key="order.orderId"
+            class="rounded-[1.5rem] border border-stone-200 bg-white p-4"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="font-bold">{{ order.orderId }}</h3>
+                <p class="mt-1 text-sm text-stone-500">
+                  {{ order.createdAt }} · {{ order.status }} · {{ order.paymentStatus }}
+                </p>
+              </div>
+              <strong class="text-brand-500">฿{{ order.total }}</strong>
+            </div>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in order.items"
+                :key="`${order.orderId}-${item.lineNo || item.productId}`"
+                class="rounded-2xl bg-stone-50 px-3 py-2 text-sm text-stone-700"
+              >
+                <div class="font-semibold">{{ item.qty }} x {{ item.productName }}</div>
+                <div class="mt-1 text-stone-500">{{ item.optionSummary || item.summary || '-' }}</div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
+        <h3 class="text-xl font-bold">สรุปสถานะ</h3>
+        <div class="mt-4 rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-600">
+          ระบบจะผูก `userId` จาก LINE LIFF แล้วส่งสรุปออเดอร์กลับไปที่แชทโดยตรง พร้อมเก็บประวัติลงชีต
+        </div>
+      </div>
+    </section>
 
     <dialog
       v-if="store.selectedProduct"
@@ -210,50 +274,14 @@ async function tryInitLiff() {
         <div class="mt-5 grid gap-4 sm:grid-cols-2">
           <label v-for="field in store.selectedProduct.fields" :key="field" class="grid gap-2">
             <span class="text-sm font-semibold text-stone-700">
-              {{
-                {
-                  sweetness: 'ระดับความหวาน',
-                  milk: 'ชนิดนม',
-                  roast: 'ระดับการคั่ว',
-                  matcha: 'ชนิดมัทฉะ',
-                  waterSplit: 'แยกน้ำ'
-                }[field] || field
-              }}
+              {{ fieldLabels[field] || field }}
             </span>
             <select
               v-model="store.draft.options[field]"
               class="rounded-2xl border border-stone-200 bg-white px-4 py-3"
             >
               <option
-                v-for="option in {
-                  sweetness: [
-                    { value: '0%', label: 'หวาน 0%' },
-                    { value: '25%', label: 'หวาน 25%' },
-                    { value: '50%', label: 'หวาน 50%' },
-                    { value: '75%', label: 'หวาน 75%' },
-                    { value: '100%', label: 'หวาน 100%' }
-                  ],
-                  milk: [
-                    { value: 'none', label: 'ไม่ใส่นม' },
-                    { value: 'fresh', label: 'นมสด (+10)' },
-                    { value: 'oat', label: 'นมโอ๊ต (+20)' },
-                    { value: 'soy', label: 'นมถั่วเหลือง (+15)' }
-                  ],
-                  roast: [
-                    { value: 'light', label: 'คั่วอ่อน' },
-                    { value: 'medium', label: 'คั่วกลาง' },
-                    { value: 'dark', label: 'คั่วเข้ม' }
-                  ],
-                  matcha: [
-                    { value: 'ceremonial', label: 'Ceremonial (+25)' },
-                    { value: 'classic', label: 'Classic' },
-                    { value: 'culinary', label: 'Culinary (-5)' }
-                  ],
-                  waterSplit: [
-                    { value: 'no', label: 'ไม่แยกน้ำ' },
-                    { value: 'yes', label: 'แยกน้ำ (+5)' }
-                  ]
-                }[field] || []"
+                v-for="option in store.getOptionGroupOptions(field)"
                 :key="option.value"
                 :value="option.value"
               >
@@ -333,21 +361,10 @@ async function tryInitLiff() {
       </div>
     </dialog>
 
-    <section v-if="store.responsePreview" class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
-      <div class="rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
-        <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ผลลัพธ์</p>
-        <h2 class="mt-1 text-2xl font-bold">LINE response preview</h2>
-        <pre class="mt-4 overflow-auto rounded-[1.25rem] bg-stone-950 p-4 text-sm text-brand-100">{{ JSON.stringify(store.responsePreview, null, 2) }}</pre>
-      </div>
-      <div class="rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
-        <h3 class="text-xl font-bold">QR จ่ายเงิน</h3>
-        <img
-          class="mt-4 aspect-square w-full rounded-[1.25rem] border border-stone-200 bg-white object-contain p-3"
-          :src="store.settings.paymentQrUrl || paymentQrFallback"
-          alt="QR payment"
-        />
-        <p class="mt-3 text-sm leading-6 text-stone-600">{{ store.settings.paymentHint }}</p>
-      </div>
+    <section v-if="store.responsePreview" class="mt-6 rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ผลลัพธ์</p>
+      <h2 class="mt-1 text-2xl font-bold">LINE response preview</h2>
+      <pre class="mt-4 overflow-auto rounded-[1.25rem] bg-stone-950 p-4 text-sm text-brand-100">{{ JSON.stringify(store.responsePreview, null, 2) }}</pre>
     </section>
   </div>
 </template>
