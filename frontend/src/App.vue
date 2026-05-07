@@ -29,7 +29,7 @@ onMounted(async () => {
   if (profile) {
     store.setUserProfile(profile);
   }
-  await store.bootstrap(profile || store.user);
+  store.bootstrap(profile || store.user);
 });
 
 function tryOpenProduct(productId) {
@@ -51,7 +51,7 @@ async function tryInitLiff() {
   if (!liffId) return null;
   try {
     await liff.init({ liffId, withLoginOnExternalBrowser: true });
-    if (!liff.isLoggedIn()) liff.login();
+    if (!liff.isLoggedIn()) return null;
     const profile = await liff.getProfile();
     return profile;
   } catch (error) {

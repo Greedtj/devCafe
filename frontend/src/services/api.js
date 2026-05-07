@@ -34,6 +34,41 @@ export async function bootstrapApi(user) {
   return response.json();
 }
 
+export async function fetchMenuApi() {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    return {
+      ok: true,
+      source: "local",
+      menu: readLocalMenu(),
+      options: [],
+      settings: readLocalSettings(),
+    };
+  }
+
+  const url = buildRequestUrl(apiBaseUrl);
+  url.searchParams.set("action", "menu");
+  const response = await fetch(url.toString(), { credentials: "omit" });
+  return response.json();
+}
+
+export async function fetchOrdersApi(userId = "") {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    return {
+      ok: true,
+      source: "local",
+      orders: readLocalOrders(),
+    };
+  }
+
+  const url = buildRequestUrl(apiBaseUrl);
+  url.searchParams.set("action", "orders");
+  if (userId) url.searchParams.set("userId", userId);
+  const response = await fetch(url.toString(), { credentials: "omit" });
+  return response.json();
+}
+
 export async function submitOrder(payload) {
   const apiBaseUrl = getApiBaseUrl();
   if (!apiBaseUrl) {

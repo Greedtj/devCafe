@@ -1,7 +1,14 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { categories, optionGroups as fallbackOptionGroups } from "../services/catalog";
-import { bootstrapApi, buildFlexMessage, saveAdminState, submitOrder, defaultSettings } from "../services/api";
+import {
+  buildFlexMessage,
+  fetchMenuApi,
+  fetchOrdersApi,
+  saveAdminState,
+  submitOrder,
+  defaultSettings,
+} from "../services/api";
 
 const CART_KEY = "devcafe_cart_v2";
 const USER_KEY = "devcafe_user_v2";
@@ -28,12 +35,13 @@ export const useCafeStore = defineStore("cafe", () => {
   async function bootstrap(lineUser) {
     if (lineUser) user.value = lineUser;
     try {
-      const data = await bootstrapApi(user.value);
+      const data = await fetchMenuApi();
       if (Array.isArray(data.menu)) menu.value = normalizeMenu(data.menu);
       if (Array.isArray(data.options)) options.value = normalizeOptions(data.options);
-      if (Array.isArray(data.orders)) orders.value = data.orders;
       if (data.settings) settings.value = data.settings;
       if (data.profile?.displayName) user.value = data.profile;
+
+      void loadOrders(user.value?.userId || "");
     } catch (error) {
       console.warn("bootstrap failed", error);
     }
@@ -113,6 +121,17 @@ export const useCafeStore = defineStore("cafe", () => {
     return result;
   }
 
+  async function loadOrders(userId = "") {
+    try {
+      const data = await fetchOrdersApi(userId);
+      if (Array.isArray(data.orders)) orders.value = data.orders;
+      return data;
+    } catch (error) {
+      console.warn("loadOrders failed", error);
+      return { ok: false, error: error.message };
+    }
+  }
+
   async function saveAdmin(payload) {
     const result = await saveAdminState(payload);
     if (payload.menu) menu.value = normalizeMenu(payload.menu);
@@ -141,6 +160,7 @@ export const useCafeStore = defineStore("cafe", () => {
     updateCartQty,
     removeCartItem,
     checkout,
+    loadOrders,
     saveAdmin,
     getOptionGroupOptions,
     getOptionLabel,
