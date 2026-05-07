@@ -2,7 +2,6 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { categories, optionGroups as fallbackOptionGroups } from "../services/catalog";
 import {
-  buildFlexMessage,
   fetchMenuApi,
   fetchOrdersApi,
   saveAdminState,
@@ -27,7 +26,7 @@ export const useCafeStore = defineStore("cafe", () => {
   const menu = ref([]);
   const options = ref([]);
   const orders = ref([]);
-  const responsePreview = ref(null);
+  const orderResult = ref(null);
   const optionGroupMap = computed(() => buildOptionGroupMap(options.value));
 
   const cartTotal = computed(() => cart.value.reduce((sum, item) => sum + item.price, 0));
@@ -114,7 +113,7 @@ export const useCafeStore = defineStore("cafe", () => {
     if (!result?.ok) {
       throw new Error(result?.error || "checkout failed");
     }
-    responsePreview.value = result.flexMessage || buildFlexMessage(result.order || payload);
+    orderResult.value = result;
     if (result.order) orders.value.unshift(result.order);
     cart.value = [];
     persistCart(cart.value);
@@ -186,7 +185,7 @@ export const useCafeStore = defineStore("cafe", () => {
     menu,
     options,
     orders,
-    responsePreview,
+    orderResult,
     cartTotal,
     bootstrap,
     selectCategory,

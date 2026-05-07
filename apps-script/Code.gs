@@ -70,10 +70,6 @@ function doPost(e) {
       return json_(saveAdminState_(body.payload || {}));
     }
 
-    if (action === "resetdemodata") {
-      return json_(resetDemoData_());
-    }
-
     return json_({ ok: false, error: "Unknown action" });
   } catch (error) {
     return json_({ ok: false, error: error.message });
@@ -131,6 +127,7 @@ function createOrder_(payload) {
     "",
     note,
   ]);
+  const orderRow = ordersSheet.getLastRow();
 
   items.forEach((item, index) => {
     const quantity = Number(item.qty || 1);
@@ -172,6 +169,11 @@ function createOrder_(payload) {
 
   const flexMessage = buildFlexMessage_(order);
   const sendResult = safeSendLineOrderConfirmation_(customer.userId, order);
+  const lineMessageId = getLineMessageId_(sendResult);
+  if (lineMessageId) {
+    ordersSheet.getRange(orderRow, 8).setValue(lineMessageId);
+    order.lineMessageId = lineMessageId;
+  }
 
   return {
     ok: true,
@@ -223,20 +225,6 @@ function setupWorkbook_() {
     created.push({ name: schema.name, rows: sheet.getLastRow(), columns: sheet.getLastColumn() });
   });
   return { ok: true, sheets: created };
-}
-
-function resetDemoData_() {
-  setupWorkbook_();
-
-  Object.values(SHEETS).forEach((schema) => {
-    const sheet = sheet_(schema);
-    const lastRow = sheet.getLastRow();
-    if (lastRow > 1) {
-      sheet.getRange(2, 1, lastRow - 1, Math.max(sheet.getLastColumn(), schema.headers.length)).clearContent();
-    }
-  });
-
-  return { ok: true, reset: true };
 }
 
 function getSpreadsheet_() {
@@ -493,6 +481,17 @@ function safeSendLineOrderConfirmation_(userId, order) {
       skipped: true,
       reason: error.message,
     };
+  }
+}
+
+function getLineMessageId_(sendResult) {
+  if (!sendResult || !sendResult.body) return "";
+
+  try {
+    const data = JSON.parse(sendResult.body);
+    return data?.sentMessages?.[0]?.id || "";
+  } catch (error) {
+    return "";
   }
 }
 

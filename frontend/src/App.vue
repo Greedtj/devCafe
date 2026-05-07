@@ -24,6 +24,25 @@ const fieldLabels = {
   waterSplit: "แยกน้ำ",
 };
 
+const lineSendStatus = computed(() => {
+  const sendResult = store.orderResult?.sendResult;
+  if (!sendResult) return null;
+
+  if (sendResult.ok) {
+    return {
+      tone: "success",
+      title: "ส่งสรุปเข้าแชท LINE แล้ว",
+      detail: "ลูกค้าจะได้รับ Flex Message สรุปคำสั่งซื้อในห้องแชท",
+    };
+  }
+
+  return {
+    tone: "warning",
+    title: "บันทึกออเดอร์แล้ว แต่ยังส่งเข้า LINE ไม่สำเร็จ",
+    detail: sendResult.reason || sendResult.body || `LINE status ${sendResult.statusCode || "unknown"}`,
+  };
+});
+
 onMounted(async () => {
   const profile = await tryInitLiff();
   if (profile) {
@@ -369,10 +388,31 @@ async function tryInitLiff() {
       </div>
     </div>
 
-    <section v-if="store.responsePreview" class="mt-6 rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
+    <section v-if="store.orderResult?.order" class="mt-6 rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
       <p class="text-xs font-bold uppercase tracking-[0.18em] text-brand-500">ผลลัพธ์</p>
-      <h2 class="mt-1 text-2xl font-bold">LINE response preview</h2>
-      <pre class="mt-4 overflow-auto rounded-[1.25rem] bg-stone-950 p-4 text-sm text-brand-100">{{ JSON.stringify(store.responsePreview, null, 2) }}</pre>
+      <h2 class="mt-1 text-2xl font-bold">รับคำสั่งซื้อเรียบร้อย</h2>
+      <div class="mt-4 grid gap-3 rounded-[1.25rem] bg-stone-50 p-4 text-sm text-stone-700">
+        <div class="flex items-center justify-between gap-4">
+          <span>เลขออเดอร์</span>
+          <strong class="text-stone-950">{{ store.orderResult.order.orderId }}</strong>
+        </div>
+        <div class="flex items-center justify-between gap-4">
+          <span>ยอดรวม</span>
+          <strong class="text-stone-950">฿{{ store.orderResult.order.total }}</strong>
+        </div>
+      </div>
+      <div
+        v-if="lineSendStatus"
+        class="mt-4 rounded-[1.25rem] border p-4 text-sm"
+        :class="
+          lineSendStatus.tone === 'success'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+            : 'border-amber-200 bg-amber-50 text-amber-900'
+        "
+      >
+        <p class="font-bold">{{ lineSendStatus.title }}</p>
+        <p class="mt-1 break-words leading-6">{{ lineSendStatus.detail }}</p>
+      </div>
     </section>
   </div>
 </template>
