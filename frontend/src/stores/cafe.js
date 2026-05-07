@@ -140,6 +140,42 @@ export const useCafeStore = defineStore("cafe", () => {
     return result;
   }
 
+  function calculateUnitPrice(product, itemOptions) {
+    if (!product) return 0;
+    let total = product.basePrice;
+    Object.entries(itemOptions || {}).forEach(([groupId, value]) => {
+      total += getOptionPrice(groupId, value);
+    });
+    return total;
+  }
+
+  function buildItemSummary(itemOptions, note) {
+    const parts = [];
+    Object.entries(itemOptions || {}).forEach(([groupId, value]) => {
+      const label = getOptionLabel(groupId, value);
+      if (label) parts.push(label);
+    });
+    if (note) parts.push(note);
+    return parts.join(" · ");
+  }
+
+  function getOptionGroupOptions(groupId) {
+    const items = optionGroupMap.value[groupId] || fallbackOptionGroups[groupId] || [];
+    return items.filter((item) => item.enabled !== false);
+  }
+
+  function getOptionLabel(groupId, value) {
+    return getOptionGroupOptions(groupId).find((item) => String(item.value) === String(value))?.label ?? value;
+  }
+
+  function getOptionPrice(groupId, value) {
+    return getOptionGroupOptions(groupId).find((item) => String(item.value) === String(value))?.price ?? 0;
+  }
+
+  function getDefaultOptionValue(groupId) {
+    return getOptionGroupOptions(groupId).find((item) => item.enabled !== false)?.value || "";
+  }
+
   return {
     category,
     cart,
@@ -166,25 +202,6 @@ export const useCafeStore = defineStore("cafe", () => {
     getOptionLabel,
   };
 });
-
-function calculateUnitPrice(product, options) {
-  if (!product) return 0;
-  let total = product.basePrice;
-  Object.entries(options || {}).forEach(([groupId, value]) => {
-    total += getOptionPrice(groupId, value);
-  });
-  return total;
-}
-
-function buildItemSummary(options, note) {
-  const parts = [];
-  Object.entries(options || {}).forEach(([groupId, value]) => {
-    const label = getOptionLabel(groupId, value);
-    if (label) parts.push(label);
-  });
-  if (note) parts.push(note);
-  return parts.join(" · ");
-}
 
 function normalizeMenu(menu) {
   return menu.map((item) => ({
@@ -229,23 +246,6 @@ function normalizeOptions(optionRows) {
     sortOrder: Number(item.sortOrder || 0),
     enabled: item.enabled !== false && item.enabled !== "false",
   }));
-}
-
-function getOptionGroupOptions(groupId) {
-  const items = optionGroupMap.value[groupId] || fallbackOptionGroups[groupId] || [];
-  return items.filter((item) => item.enabled !== false);
-}
-
-function getOptionLabel(groupId, value) {
-  return getOptionGroupOptions(groupId).find((item) => item.value === value)?.label ?? value;
-}
-
-function getOptionPrice(groupId, value) {
-  return getOptionGroupOptions(groupId).find((item) => item.value === value)?.price ?? 0;
-}
-
-function getDefaultOptionValue(groupId) {
-  return getOptionGroupOptions(groupId).find((item) => item.enabled !== false)?.value || "";
 }
 
 function loadCart() {
