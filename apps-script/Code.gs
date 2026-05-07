@@ -14,7 +14,11 @@ function doGet(e) {
     return json_({ ok: true, ts: new Date().toISOString() });
   }
   if (action === "bootstrap") {
-    return json_(bootstrap_());
+    return json_(bootstrap_({
+      userId: e.parameter.userId || "",
+      displayName: e.parameter.displayName || "",
+      pictureUrl: e.parameter.pictureUrl || "",
+    }));
   }
   if (action === "orders") {
     return json_({ ok: true, orders: readOrders_(e.parameter.userId) });
@@ -37,7 +41,10 @@ function doPost(e) {
   return json_({ ok: false, error: "Unknown action" });
 }
 
-function bootstrap_() {
+function bootstrap_(user) {
+  if (user && user.userId) {
+    upsertCustomer_(user);
+  }
   return {
     ok: true,
     menu: readMenu_(),
@@ -100,7 +107,12 @@ function createOrder_(payload) {
   });
 
   if (customer.userId) {
-    customersSheet.appendRow([customer.userId, customer.displayName || "", createdAt]);
+    upsertCustomer_({
+      userId: customer.userId,
+      displayName: customer.displayName || "",
+      pictureUrl: customer.pictureUrl || "",
+      lastSeenAt: createdAt,
+    });
   }
 
   const order = {
@@ -112,12 +124,18 @@ function createOrder_(payload) {
     status: "pending-payment",
   };
   const flexMessage = buildFlexMessage_(order);
+  const paymentQrUrl = getSetting_("paymentQrUrl") || "";
+  const paymentHint = getSetting_("paymentHint") || "Scan QR to pay";
+  const sendResult = customer.userId
+    ? sendLineOrderConfirmation_(customer.userId, order, paymentQrUrl, paymentHint)
+    : { ok: false, skipped: true, reason: "missing userId" };
   return {
     ok: true,
     order,
     flexMessage,
-    paymentQrUrl: getSetting_("paymentQrUrl") || "",
-    paymentHint: getSetting_("paymentHint") || "Scan QR to pay",
+    paymentQrUrl,
+    paymentHint,
+    sendResult,
   };
 }
 
@@ -290,6 +308,70 @@ function upsertSetting_(key, value) {
     }
   }
   sheet.appendRow([key, value]);
+}
+
+function upsertCustomer_(customer) {
+  const sheet = ensureSheet_(SHEET_NAMES.customers, ["userId", "displayName", "pictureUrl", "lastSeenAt"]);
+  const values = sheet.getDataRange().getValues();
+  const rows = values.slice(1);
+
+  for (let i = 0; i < rows.length; i += 1) {
+    if (rows[i][0] === customer.userId) {
+      sheet.getRange(i + 2, 2).setValue(customer.displayName || "");
+      sheet.getRange(i + 2, 3).setValue(customer.pictureUrl || "");
+      sheet.getRange(i + 2, 4).setValue(customer.lastSeenAt || new Date().toISOString());
+      return;
+    }
+  }
+
+  sheet.appendRow([
+    customer.userId || "",
+    customer.displayName || "",
+    customer.pictureUrl || "",
+    customer.lastSeenAt || new Date().toISOString(),
+  ]);
+}
+
+function sendLineOrderConfirmation_(userId, order, paymentQrUrl, paymentHint) {
+  const accessToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+  if (!accessToken) {
+    return { ok: false, skipped: true, reason: "missing LINE_CHANNEL_ACCESS_TOKEN" };
+  }
+
+  const messages = [
+    buildFlexMessage_(order),
+    {
+      type: "text",
+      text: paymentHint || "Please scan the QR code to pay.",
+    },
+  ];
+
+  if (paymentQrUrl) {
+    messages.push({
+      type: "image",
+      originalContentUrl: paymentQrUrl,
+      previewImageUrl: paymentQrUrl,
+    });
+  }
+
+  const response = UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push", {
+    method: "post",
+    contentType: "application/json",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    payload: JSON.stringify({
+      to: userId,
+      messages,
+    }),
+    muteHttpExceptions: true,
+  });
+
+  return {
+    ok: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
+    statusCode: response.getResponseCode(),
+    body: response.getContentText(),
+  };
 }
 
 function json_(payload, statusCode) {

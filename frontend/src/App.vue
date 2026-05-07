@@ -18,8 +18,11 @@ const categories = computed(() => {
 });
 
 onMounted(async () => {
-  await tryInitLiff();
-  await store.bootstrap(store.user);
+  const profile = await tryInitLiff();
+  if (profile) {
+    store.setUserProfile(profile);
+  }
+  await store.bootstrap(profile || store.user);
 });
 
 function tryOpenProduct(productId) {
@@ -34,14 +37,15 @@ async function confirmCheckout() {
 
 async function tryInitLiff() {
   const liffId = import.meta.env.VITE_LIFF_ID?.trim();
-  if (!liffId) return;
+  if (!liffId) return null;
   try {
     await liff.init({ liffId, withLoginOnExternalBrowser: true });
     if (!liff.isLoggedIn()) liff.login();
     const profile = await liff.getProfile();
-    store.user = profile;
+    return profile;
   } catch (error) {
     console.warn("LIFF init failed", error);
+    return null;
   }
 }
 </script>
@@ -74,7 +78,7 @@ async function tryInitLiff() {
             <h2 class="mt-1 text-2xl font-bold">เลือกเมนู</h2>
           </div>
           <span class="rounded-full bg-brand-100 px-3 py-2 text-sm font-bold text-brand-500">
-            {{ store.user.displayName }}
+            {{ store.user.displayName || 'Guest' }}
           </span>
         </div>
 

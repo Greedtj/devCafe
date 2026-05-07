@@ -36,6 +36,8 @@ export async function bootstrapApi(user) {
   const url = buildRequestUrl(apiBaseUrl);
   url.searchParams.set("action", "bootstrap");
   if (user?.userId) url.searchParams.set("userId", user.userId);
+  if (user?.displayName) url.searchParams.set("displayName", user.displayName);
+  if (user?.pictureUrl) url.searchParams.set("pictureUrl", user.pictureUrl);
   const response = await fetch(url.toString(), { credentials: "omit" });
   return response.json();
 }

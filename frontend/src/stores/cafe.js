@@ -4,6 +4,7 @@ import { categories, getGroupLabel, getGroupPrice, getProductById, optionGroups,
 import { bootstrapApi, buildFlexMessage, saveAdminState, submitOrder, defaultSettings } from "../services/api";
 
 const CART_KEY = "devcafe_cart_v2";
+const USER_KEY = "devcafe_user_v2";
 
 export const useCafeStore = defineStore("cafe", () => {
   const category = ref(categories[0].id);
@@ -14,10 +15,7 @@ export const useCafeStore = defineStore("cafe", () => {
     note: "",
     qty: 1,
   });
-  const user = ref({
-    userId: "demo-user",
-    displayName: "Guest",
-  });
+  const user = ref(loadUser());
   const settings = ref(defaultSettings());
   const menu = ref(products);
   const orders = ref([]);
@@ -40,6 +38,17 @@ export const useCafeStore = defineStore("cafe", () => {
 
   function selectCategory(value) {
     category.value = value;
+  }
+
+  function setUserProfile(profile) {
+    if (!profile) return;
+    user.value = {
+      userId: profile.userId || "",
+      displayName: profile.displayName || "Guest",
+      pictureUrl: profile.pictureUrl || "",
+      statusMessage: profile.statusMessage || "",
+    };
+    persistUser(user.value);
   }
 
   function openProduct(productId) {
@@ -116,6 +125,7 @@ export const useCafeStore = defineStore("cafe", () => {
     cartTotal,
     bootstrap,
     selectCategory,
+    setUserProfile,
     openProduct,
     addDraftToCart,
     updateCartQty,
@@ -163,6 +173,22 @@ function loadCart() {
   return raw ? JSON.parse(raw) : [];
 }
 
+function loadUser() {
+  const raw = localStorage.getItem(USER_KEY);
+  return raw
+    ? JSON.parse(raw)
+    : {
+        userId: "",
+        displayName: "Guest",
+        pictureUrl: "",
+        statusMessage: "",
+      };
+}
+
 function persistCart(cart) {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+function persistUser(user) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
