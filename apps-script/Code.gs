@@ -495,7 +495,7 @@ function getLineMessageId_(sendResult) {
   }
 }
 
-function authorizeServices_() {
+function authorizeServices() {
   const accessToken = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN") || "missing-token";
   const response = UrlFetchApp.fetch("https://api.line.me/v2/bot/info", {
     method: "get",
@@ -508,6 +508,28 @@ function authorizeServices_() {
   return {
     ok: true,
     lineStatusCode: response.getResponseCode(),
+  };
+}
+
+function setScriptProperties(properties) {
+  if (!properties || typeof properties !== "object") {
+    throw new Error("properties object is required");
+  }
+
+  const allowedKeys = ["SPREADSHEET_ID", "LINE_CHANNEL_ACCESS_TOKEN"];
+  const props = PropertiesService.getScriptProperties();
+  const savedKeys = [];
+
+  allowedKeys.forEach((key) => {
+    if (properties[key]) {
+      props.setProperty(key, String(properties[key]));
+      savedKeys.push(key);
+    }
+  });
+
+  return {
+    ok: true,
+    savedKeys,
   };
 }
 

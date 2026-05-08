@@ -8,6 +8,7 @@
 frontend/.env
 frontend/.env.*
 !frontend/.env.example
+.clasprc.json
 
 # Node / frontend build
 node_modules/

@@ -76,6 +76,50 @@ If a value is empty, the app falls back to local demo mode for that part.
 5. Set access to the option that matches your use case.
 6. Copy the `/exec` URL into `frontend/.env` as `VITE_API_BASE_URL`.
 
+## GitHub Actions Apps Script deploy
+
+This repo can push `apps-script/Code.gs` to Google Apps Script automatically with `clasp`.
+
+### One-time local clasp login
+
+Run this once on your machine:
+
+```bash
+npx @google/clasp login
+```
+
+Then copy the full contents of `~/.clasprc.json` into a GitHub Actions secret named:
+
+```txt
+CLASPRC_JSON
+```
+
+Do not commit `.clasprc.json` to the repository.
+
+### Required GitHub secrets
+
+Add these in GitHub repository settings:
+
+```txt
+CLASPRC_JSON
+APPS_SCRIPT_SPREADSHEET_ID
+APPS_SCRIPT_LINE_CHANNEL_ACCESS_TOKEN
+```
+
+Current Apps Script config is stored in `apps-script/.clasp.json`.
+
+### How deploy works
+
+On pushes to `main` that touch `apps-script/**`, GitHub Actions will:
+
+1. Install `@google/clasp`.
+2. Restore clasp auth from `CLASPRC_JSON`.
+3. Run `clasp push --force`.
+4. Run `setScriptProperties` to set `SPREADSHEET_ID` and `LINE_CHANNEL_ACCESS_TOKEN`.
+5. Deploy the existing Apps Script web app deployment.
+
+You can also run the workflow manually from GitHub Actions with `workflow_dispatch`.
+
 ## Deploy checklist
 
 - Frontend build passes with `npm run build`
