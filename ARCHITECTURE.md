@@ -2,8 +2,8 @@
 
 This repo is being shaped for a two-stage path:
 
-1. Mini project phase: lightweight, free, fast to ship.
-2. Scale-up phase: ready to evolve into a full production app.
+1. Mini project phase: lightweight and fast to ship.
+2. Scale-up phase: PostgreSQL-backed API ready to evolve into a full production app.
 
 ## Recommended stack for the scalable path
 
@@ -13,9 +13,10 @@ This repo is being shaped for a two-stage path:
 - Routing: Vue Router
 - Forms and validation: native + Zod
 - Data fetching: fetch first, TanStack Query later if the app grows
-- Backend now: Google Apps Script
-- Database now: Google Sheets
-- Backend later: Supabase or a proper API server if usage grows
+- Backend now: Vercel Functions under `/api/dev-cafe`
+- ORM now: Prisma
+- Database now: PostgreSQL database `dev_cafe`
+- Backend later: split into a dedicated API service if usage grows beyond serverless limits
 
 ## Why Tailwind first
 
@@ -34,16 +35,17 @@ Use `.env` from day one with Vite-prefixed variables:
 
 Keep secrets out of frontend env files:
 
-- LINE channel secret
-- Apps Script private settings
-- Supabase service key, if added later
+- `DATABASE_URL`
+- `LINE_CHANNEL_ACCESS_TOKEN`
+- Any future service keys
 
 ## Suggested repo layout
 
 ```text
 devCafe/
-  apps-script/
-    Code.gs
+  api/
+    dev-cafe.js
+    _dev-cafe-handler.cjs
   frontend/
     index.html
     admin.html
@@ -57,13 +59,11 @@ devCafe/
       styles/
       utils/
     public/
-  docs/
-    architecture.md
+  prisma/
+    schema.prisma
   .env.example
   package.json
-  tailwind.config.js
-  postcss.config.js
-  vite.config.js
+  vercel.json
 ```
 
 ## Phase 1 screen rules
@@ -84,7 +84,6 @@ devCafe/
 
 - Split shared menu/order schemas into a shared module.
 - Move menu options into backend-driven config tables.
-- Replace Google Sheets with a proper database only when the operational pain is real.
 - Add admin role control, order status pipeline, and payment reconciliation.
 - Add analytics and audit trail later.
 

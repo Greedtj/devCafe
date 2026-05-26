@@ -1,157 +1,105 @@
-# DevCafe Mini Project
+# DevCafe
 
-โปรเจกต์ตัวอย่างสำหรับสั่งเครื่องดื่มผ่าน LINE OA แบบฟรี 100% ด้วย LIFF + Google Apps Script + Google Sheets + Vercel
+LINE LIFF ordering app for a cafe, backed by Vercel Functions, Prisma, and PostgreSQL.
 
-## What is included
+## Stack
 
-- Customer ordering page
-- Cart and checkout flow
-- Admin page for menu / pricing / payment QR settings
-- Google Apps Script backend for Google Sheets storage
-- LINE Flex Message response payload builder
+- Frontend: Vite + Vue + Pinia + Tailwind CSS
+- Backend: Vercel Functions under `/api/dev-cafe`
+- ORM: Prisma
+- Database: PostgreSQL database `dev_cafe`
+- LINE: LIFF profile + Messaging API push Flex Message
 
-## Recommended stack
+## Project Structure
 
-- Frontend: plain HTML + CSS + vanilla JS for the first version
-- Hosting: Vercel
-- Backend: Google Apps Script
-- Database: Google Sheets
+- `frontend/` customer and admin UI
+- `api/dev-cafe.js` production API endpoint
+- `api/_dev-cafe-handler.cjs` shared API handler
+- `prisma/schema.prisma` PostgreSQL schema
 
-## Why this stack
+## Environment Variables
 
-- Free to deploy
-- Very low operational overhead
-- Enough for a mini cafe ordering project
-- Easy to connect with LINE LIFF and Flex Message
+Create root `.env` for local API and Prisma:
 
-## Local structure
+```env
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/dev_cafe?schema=public"
+LINE_CHANNEL_ACCESS_TOKEN="YOUR_LINE_MESSAGING_API_TOKEN"
+```
 
-- `frontend/` Vite + Vue + Tailwind app
-- `apps-script/Code.gs` Google Apps Script backend
-- `frontend/.env.example` runtime env template
+Create `frontend/.env` from `frontend/.env.example`:
 
-## Next step
+```env
+VITE_APP_NAME=DevCafe
+VITE_LIFF_ID=YOUR_LIFF_ID
+VITE_API_BASE_URL=/api/dev-cafe
+VITE_PAYMENT_QR_URL=
+VITE_BASE_PATH=/
+```
 
-1. `cd frontend`
-2. Run `npm install`
-3. Run `npm run dev`
-4. Create a Google Sheet and paste `apps-script/Code.gs` into Apps Script.
-5. Deploy the Apps Script as a web app.
-6. Copy the web app URL and LIFF ID into `frontend/.env`.
-7. Import this repo into Vercel and set the root directory to `frontend`.
-8. Register the Vercel production URL as the LIFF endpoint.
+## Local Setup
 
-## Frontend env values
+Make sure PostgreSQL is running locally and listening on `localhost:5432`.
 
-Create `frontend/.env` from `frontend/.env.example` and fill these values:
+Create the database once if it does not exist:
 
-- `VITE_LIFF_ID`  
-  Use the LIFF ID created in the LINE Developers console.
-- `VITE_API_BASE_URL`  
-  Use `/api/apps-script` in Vercel so the frontend talks to the same origin.
-- `VITE_PAYMENT_QR_URL`  
-  Use a public image URL for the shop QR payment code.
-- `VITE_BASE_PATH`  
-  Use `/` for Vercel root hosting.
-- `APPS_SCRIPT_WEBAPP_URL`  
-  Use the deployed Google Apps Script web app URL, ending with `/exec`. This is used by the Vercel proxy function.
+```sql
+CREATE DATABASE dev_cafe;
+```
 
-If a value is empty, the app falls back to local demo mode for that part.
-
-## LIFF setup
-
-1. Open the LINE Developers console.
-2. Create or open your Messaging API channel.
-3. Add a LIFF app.
-4. Set the LIFF endpoint to the deployed Vercel production URL.
-5. Copy the LIFF ID into `frontend/.env`.
-6. In LINE OA rich menu or chat menu, point the button to the LIFF URL.
-
-## Apps Script setup
-
-1. Open Google Sheets and create a new sheet for DevCafe.
-2. Open `Extensions > Apps Script`.
-3. Paste the contents of `apps-script/Code.gs`.
-4. Deploy > New deployment > Web app.
-5. Set access to the option that matches your use case.
-6. Copy the `/exec` URL into `frontend/.env` as `VITE_API_BASE_URL`.
-
-## GitHub Actions Apps Script deploy
-
-This repo can push `apps-script/Code.gs` to Google Apps Script automatically with `clasp`.
-
-### One-time local clasp login
-
-Run this once on your machine:
+Then run:
 
 ```bash
-npx @google/clasp login
+npm install
+npm install --prefix frontend
+npm run db:push
+npm run dev
 ```
 
-Then copy the full contents of `~/.clasprc.json` into a GitHub Actions secret named:
+Open:
 
 ```txt
-CLASPRC_JSON
+http://localhost:5173/
+http://localhost:5173/admin.html
 ```
 
-Do not commit `.clasprc.json` to the repository.
+## Database Tables
 
-### Required GitHub secrets
+Prisma creates these PostgreSQL tables:
 
-Add these in GitHub repository settings:
+- `dev_cafe_menu`
+- `dev_cafe_options`
+- `dev_cafe_orders`
+- `dev_cafe_order_items`
+- `dev_cafe_customers`
+- `dev_cafe_settings`
+
+## API Contract
+
+Frontend calls `VITE_API_BASE_URL` with the same action contract as before:
+
+- `GET /api/dev-cafe?action=health`
+- `GET /api/dev-cafe?action=menu`
+- `GET /api/dev-cafe?action=orders&userId=...`
+- `GET /api/dev-cafe?action=bootstrap&userId=...`
+- `POST /api/dev-cafe` with `{ "action": "createOrder", "payload": ... }`
+- `POST /api/dev-cafe` with `{ "action": "saveAdminState", "payload": ... }`
+
+## Vercel Setup
+
+Set these environment variables in Vercel:
 
 ```txt
-CLASPRC_JSON
-APPS_SCRIPT_SPREADSHEET_ID
-APPS_SCRIPT_LINE_CHANNEL_ACCESS_TOKEN
+DATABASE_URL
+LINE_CHANNEL_ACCESS_TOKEN
+VITE_LIFF_ID
+VITE_API_BASE_URL=/api/dev-cafe
+VITE_BASE_PATH=/
+VITE_PAYMENT_QR_URL=
 ```
 
-Current Apps Script config is stored in `apps-script/.clasp.json`.
+Build settings are configured in `vercel.json`.
 
-### How deploy works
+## Notes
 
-On pushes to `main` that touch `apps-script/**`, GitHub Actions will:
-
-1. Install `@google/clasp`.
-2. Restore clasp auth from `CLASPRC_JSON`.
-3. Run `clasp push --force`.
-4. Run `setScriptProperties` to set `SPREADSHEET_ID` and `LINE_CHANNEL_ACCESS_TOKEN`.
-5. Deploy the existing Apps Script web app deployment.
-
-You can also run the workflow manually from GitHub Actions with `workflow_dispatch`.
-
-## Deploy checklist
-
-- Frontend build passes with `npm run build`
-- `.env` is filled
-- `VITE_BASE_PATH=/`
-- Apps Script web app is deployed
-- LIFF endpoint points to the live frontend
-- Rich menu button opens the LIFF app
-- QR payment image URL is public
-
-## Vercel setup
-
-1. Create or sign in to Vercel.
-2. Import this GitHub repository as a new project.
-3. Set the root directory to `frontend`.
-4. Keep the build command as `npm run build`.
-5. Keep the output directory as `dist`.
-6. Add these environment variables in Vercel:
-   - `VITE_LIFF_ID`
-   - `VITE_API_BASE_URL`
-   - `VITE_PAYMENT_QR_URL`
-   - `VITE_BASE_PATH=/`
-   - `APPS_SCRIPT_WEBAPP_URL`
-7. Deploy.
-
-## Why Vercel
-
-- Free Hobby plan available.
-- Works well with private GitHub repositories.
-- Produces a stable production URL for LIFF.
-- Easier path than GitHub Pages when the repo is private.
-
-## Legacy files
-
-The root-level HTML/CSS/JS scaffold was removed. The active app is under `frontend/`.
+- `localhost` inside Vercel means Vercel itself, not your local machine. For production, PostgreSQL must be reachable from Vercel.
+- The only active backend endpoint is `/api/dev-cafe`.

@@ -129,7 +129,7 @@ async function tryInitLiff() {
             v-if="!store.menu.filter((menuItem) => menuItem.category === store.category && menuItem.enabled !== false).length"
             class="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-6 text-stone-500 sm:col-span-2 xl:col-span-3"
           >
-            ยังไม่มีเมนูในชีต `menu_master` ตอนนี้ ให้ admin ใส่ข้อมูลจริงก่อน ระบบจะดึงมาแสดงอัตโนมัติ
+            ยังไม่มีเมนูในฐานข้อมูล `dev_cafe_menu` ตอนนี้ ให้ admin เพิ่มข้อมูลจริงก่อน ระบบจะดึงมาแสดงอัตโนมัติ
           </div>
           <article
             v-for="item in store.menu.filter((menuItem) => menuItem.category === store.category && menuItem.enabled !== false)"
@@ -268,7 +268,7 @@ async function tryInitLiff() {
       <div class="rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 shadow-soft">
         <h3 class="text-xl font-bold">สรุปสถานะ</h3>
         <div class="mt-4 rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 text-sm leading-6 text-stone-600">
-          ระบบจะผูก `userId` จาก LINE LIFF แล้วส่งสรุปออเดอร์กลับไปที่แชทโดยตรง พร้อมเก็บประวัติลงชีต
+          ระบบจะผูก `userId` จาก LINE LIFF แล้วส่งสรุปออเดอร์กลับไปที่แชทโดยตรง พร้อมเก็บประวัติลงฐานข้อมูล
         </div>
       </div>
     </section>
