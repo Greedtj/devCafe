@@ -5,7 +5,7 @@ LINE LIFF ordering app for a cafe, backed by Vercel Functions, Prisma, and Postg
 ## Stack
 
 - Frontend: Vite + Vue + Pinia + Tailwind CSS
-- Backend: Local/Vercel-compatible API handler under `/api/dev-cafe`
+- Backend: Vercel Functions under `/api/dev-cafe`
 - ORM: Prisma
 - Database: PostgreSQL database `dev_cafe`
 - LINE: LIFF profile + Messaging API push Flex Message
@@ -88,26 +88,22 @@ Frontend calls `VITE_API_BASE_URL` with the same action contract as before:
 - `POST /api/dev-cafe` with `{ "action": "createOrder", "payload": ... }`
 - `POST /api/dev-cafe` with `{ "action": "saveAdminState", "payload": ... }`
 
-## GitHub Pages Deployment
+## Vercel Setup
 
-Deployment is handled by GitHub Actions in `.github/workflows/deploy-github-pages.yml`.
-The workflow builds the static frontend and publishes `frontend/dist` to GitHub Pages.
-
-GitHub Pages URL:
+Set these environment variables in Vercel:
 
 ```txt
-https://greedtj.github.io/devCafe/
+DATABASE_URL
+LINE_CHANNEL_ACCESS_TOKEN
+VITE_LIFF_ID
+VITE_API_BASE_URL=/api/dev-cafe
+VITE_BASE_PATH=/
+VITE_PAYMENT_QR_URL=
 ```
 
-The GitHub Pages build sets:
-
-```txt
-VITE_BASE_PATH=/devCafe/
-VITE_API_BASE_URL=
-```
-
-Because GitHub Pages is static hosting, the deployed site uses the browser/local fallback data path unless a separate API is hosted and `VITE_API_BASE_URL` is set to that API URL.
+Build settings are configured in `vercel.json`.
 
 ## Notes
 
+- `localhost` inside Vercel means Vercel itself, not your local machine. For production, PostgreSQL must be reachable from Vercel.
 - The only active backend endpoint is `/api/dev-cafe`.
