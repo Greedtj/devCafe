@@ -7,6 +7,10 @@ const saving = ref(false);
 const activeTab = ref("menu"); // 'menu', 'options', 'orders'
 const selectedId = ref(null);
 const selectedGroup = ref(null);
+const enabledBadgeClass = "bg-emerald-100 text-emerald-800";
+const disabledBadgeClass = "bg-stone-200 text-stone-600";
+const enabledSelectClass = "bg-emerald-50 text-emerald-800";
+const disabledSelectClass = "bg-stone-100 text-stone-600";
 
 onMounted(async () => {
   await store.bootstrap();
@@ -20,8 +24,32 @@ const groupedOptions = computed(() => {
   }, {});
 });
 
+const optionGroupMeta = computed(() => {
+  const metas = new Map(store.optionGroups.map((group) => [String(group.groupId), group]));
+  store.options.forEach((option) => {
+    if (!metas.has(String(option.groupId))) {
+      metas.set(String(option.groupId), {
+        groupId: String(option.groupId),
+        optionGroupId: option.optionGroupId || null,
+        name: option.groupName || String(option.groupId),
+        choiceType: option.choiceType || "S",
+        isRequired: false,
+        minSelect: 0,
+        maxSelect: 1,
+        sortOrder: 0,
+        enabled: true,
+      });
+    }
+  });
+  return Array.from(metas.values()).sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+});
+
 const selectedMenuItem = computed(() => {
   return store.menu.find((m) => m.id === selectedId.value);
+});
+
+const selectedGroupMeta = computed(() => {
+  return optionGroupMeta.value.find((group) => group.groupId === selectedGroup.value);
 });
 
 function selectMenu(id) {
@@ -34,9 +62,15 @@ function selectOptionGroup(groupId) {
 
 function addMenuItem() {
   const newId = `menu-${Date.now()}`;
+  const firstCategory = store.catalogCategories[0];
   store.menu.push({
     id: newId,
-    category: "coffee",
+    menuId: null,
+    category: firstCategory?.id || "",
+    categoryId: firstCategory?.categoryId || null,
+    categoryName: firstCategory?.name || "",
+    subCategoryId: null,
+    subCategoryName: "",
     name: "เมนูใหม่",
     description: "",
     basePrice: 0,
@@ -57,9 +91,14 @@ function deleteMenuItem(id) {
 }
 
 function addOptionToGroup(groupId) {
+  const group = optionGroupMeta.value.find((item) => item.groupId === groupId);
   store.options.push({
     groupId: groupId,
+    optionGroupId: group?.optionGroupId || null,
+    groupName: group?.name || groupId,
+    choiceType: group?.choiceType || "S",
     value: "",
+    optionItemId: null,
     label: "",
     price: 0,
     sortOrder: (groupedOptions.value[groupId]?.length || 0) + 1,
@@ -68,21 +107,70 @@ function addOptionToGroup(groupId) {
 }
 
 function createNewGroup() {
-  const groupId = prompt("ระบุชื่อกลุ่มใหม่ (เช่น sweetness, milk):");
-  if (!groupId) return;
+  const groupName = prompt("ระบุชื่อกลุ่มใหม่ (เช่น ระดับความหวาน, ชนิดนม):");
+  if (!groupName) return;
+  const groupId = `new-${Date.now()}`;
   if (groupedOptions.value[groupId]) {
     alert("มีกลุ่มนี้อยู่แล้ว");
     return;
   }
+  store.optionGroups.push({
+    groupId,
+    optionGroupId: null,
+    name: groupName,
+    choiceType: "S",
+    isRequired: false,
+    minSelect: 0,
+    maxSelect: 1,
+    sortOrder: optionGroupMeta.value.length + 1,
+    enabled: true,
+  });
   store.options.push({
-    groupId: groupId,
-    value: "value1",
+    groupId,
+    optionGroupId: null,
+    groupName,
+    choiceType: "S",
+    value: "",
+    optionItemId: null,
     label: "ตัวเลือก 1",
     price: 0,
     sortOrder: 1,
     enabled: true,
   });
   selectedGroup.value = groupId;
+}
+
+function toggleMenuOptionGroup(menuItem, groupId) {
+  const fields = Array.isArray(menuItem.fields) ? menuItem.fields : [];
+  if (fields.includes(groupId)) {
+    menuItem.fields = fields.filter((item) => item !== groupId);
+    return;
+  }
+  menuItem.fields = [...fields, groupId];
+}
+
+function updateMenuCategory(menuItem, categoryId) {
+  const category = store.catalogCategories.find((item) => String(item.id) === String(categoryId));
+  menuItem.category = String(categoryId || "");
+  menuItem.categoryId = category?.categoryId || Number(categoryId) || null;
+  menuItem.categoryName = category?.name || "";
+  menuItem.subCategoryId = null;
+  menuItem.subCategoryName = "";
+}
+
+function updateMenuSubCategory(menuItem, subCategoryId) {
+  const category = store.catalogCategories.find((item) => String(item.id) === String(menuItem.category));
+  const subCategory = category?.subCategories?.find((item) => String(item.id) === String(subCategoryId));
+  menuItem.subCategoryId = subCategory?.subCategoryId || Number(subCategoryId) || null;
+  menuItem.subCategoryName = subCategory?.name || "";
+}
+
+function updateSelectedGroupName(value) {
+  const meta = selectedGroupMeta.value;
+  if (meta) meta.name = value;
+  store.options.forEach((option) => {
+    if (option.groupId === selectedGroup.value) option.groupName = value;
+  });
 }
 
 function deleteOption(opt) {
@@ -94,10 +182,10 @@ function deleteOption(opt) {
 }
 
 function validateBeforeSave() {
-  // Check Menu IDs
   const menuIds = new Set();
   for (const item of store.menu) {
-    if (!item.id?.trim()) return "รายการเมนูต้องมี ID";
+    if (!item.name?.trim()) return "รายการเมนูต้องมีชื่อ";
+    if (!item.category) return `เมนู ${item.name} ต้องเลือกหมวดหมู่`;
     if (menuIds.has(item.id)) return `ID เมนูซ้ำกัน: ${item.id}`;
     menuIds.add(item.id);
   }
@@ -105,12 +193,12 @@ function validateBeforeSave() {
   // Check Options
   const seenOptions = new Set();
   for (const opt of store.options) {
-    if (!opt.groupId?.trim() || opt.value === undefined || opt.value === null || String(opt.value).trim() === "") {
-      return `พบรายการในกลุ่ม ${opt.groupId || 'Unknown'} ที่ยังไม่ได้ระบุค่า (Value)`;
+    if (!opt.groupId?.trim() || !opt.label?.trim()) {
+      return `พบรายการในกลุ่ม ${opt.groupName || opt.groupId || 'Unknown'} ที่ยังไม่ได้ระบุชื่อ`;
     }
-    const key = `${opt.groupId}:${opt.value}`;
+    const key = opt.value ? `${opt.groupId}:${opt.value}` : `${opt.groupId}:new:${opt.label}`;
     if (seenOptions.has(key)) {
-      return `พบค่าซ้ำในกลุ่ม ${opt.groupId}: "${opt.value}" (แต่ละรายการในกลุ่มเดียวกันต้องมี Value ต่างกัน)`;
+      return `พบตัวเลือกซ้ำในกลุ่ม ${opt.groupName || opt.groupId}: "${opt.label}"`;
     }
     seenOptions.add(key);
   }
@@ -149,14 +237,14 @@ async function save() {
           <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center text-white font-bold">C</div>
           <h1 class="text-lg font-black text-stone-900 tracking-tight">DEV CAFE <span class="text-brand-500">ADMIN</span></h1>
         </div>
-        <nav class="flex gap-1 bg-stone-100 p-1 rounded-xl">
+        <nav class="flex gap-1 bg-brand-50 p-1 rounded-xl border border-brand-100">
           <button
             v-for="tab in ['menu', 'options', 'orders']"
             :key="tab"
             @click="activeTab = tab"
             :class="[
               'rounded-lg px-6 py-1.5 text-sm font-bold transition-all duration-200',
-              activeTab === tab ? 'bg-white text-brand-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+              activeTab === tab ? 'bg-brand-500 text-white shadow-sm' : 'text-stone-500 hover:text-brand-700'
             ]"
           >
             {{ tab === 'menu' ? 'เมนูสินค้า' : tab === 'options' ? 'กลุ่มตัวเลือก' : 'รายการสั่งซื้อ' }}
@@ -173,7 +261,7 @@ async function save() {
         <button
           @click="save"
           :disabled="saving"
-          class="rounded-xl bg-stone-900 px-6 py-2 text-sm font-bold text-white shadow-lg hover:bg-stone-800 disabled:opacity-50 active:scale-95 transition-all"
+          class="rounded-xl bg-brand-700 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-brand-500/20 hover:bg-brand-600 disabled:opacity-50 active:scale-95 transition-all"
         >
           {{ saving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง' }}
         </button>
@@ -199,13 +287,13 @@ async function save() {
               :key="item.id"
               @click="selectMenu(item.id)"
               :class="[
-                'cursor-pointer p-4 transition-all border-l-4',
-                selectedId === item.id ? 'bg-brand-50/50 border-brand-500' : 'border-transparent hover:bg-stone-50'
+                'cursor-pointer m-2 rounded-2xl border p-4 transition-all',
+                selectedId === item.id ? 'border-brand-200 bg-brand-50 text-brand-900' : 'border-transparent hover:border-stone-200 hover:bg-stone-50'
               ]"
             >
               <div class="flex justify-between items-start">
                 <div class="font-bold text-stone-800 truncate pr-2">{{ item.name || 'ไม่มีชื่อ' }}</div>
-                <div :class="['text-[10px] px-1.5 py-0.5 rounded font-bold uppercase', item.enabled ? 'bg-green-100 text-green-700' : 'bg-stone-200 text-stone-500']">
+                <div :class="['text-[10px] px-1.5 py-0.5 rounded font-bold uppercase', item.enabled ? enabledBadgeClass : disabledBadgeClass]">
                   {{ item.enabled ? 'ON' : 'OFF' }}
                 </div>
               </div>
@@ -242,12 +330,35 @@ async function save() {
                       <input v-model="selectedMenuItem.name" class="mt-1 w-full rounded-2xl border-stone-200 bg-stone-50 px-4 py-3 text-lg font-bold focus:bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all" />
                     </label>
                     <label class="block">
-                      <span class="text-xs font-bold text-stone-400 uppercase ml-1">Product ID (Unique)</span>
-                      <input v-model="selectedMenuItem.id" class="mt-1 w-full rounded-2xl border-stone-200 bg-stone-50 px-4 py-3 text-sm focus:bg-white transition-all" />
+                      <span class="text-xs font-bold text-stone-400 uppercase ml-1">Menu ID</span>
+                      <input :value="selectedMenuItem.menuId || 'สร้างใหม่หลังบันทึก'" disabled class="mt-1 w-full rounded-2xl border-stone-200 bg-stone-100 px-4 py-3 text-sm text-stone-400" />
                     </label>
                     <label class="block">
                       <span class="text-xs font-bold text-stone-400 uppercase ml-1">หมวดหมู่</span>
-                      <input v-model="selectedMenuItem.category" class="mt-1 w-full rounded-2xl border-stone-200 bg-stone-50 px-4 py-3 text-sm focus:bg-white transition-all" />
+                      <select
+                        :value="selectedMenuItem.category"
+                        class="mt-1 w-full rounded-2xl border-stone-200 bg-stone-50 px-4 py-3 text-sm focus:bg-white transition-all"
+                        @change="updateMenuCategory(selectedMenuItem, $event.target.value)"
+                      >
+                        <option v-for="cat in store.catalogCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                      </select>
+                    </label>
+                    <label class="block">
+                      <span class="text-xs font-bold text-stone-400 uppercase ml-1">หมวดย่อย</span>
+                      <select
+                        :value="selectedMenuItem.subCategoryId || ''"
+                        class="mt-1 w-full rounded-2xl border-stone-200 bg-stone-50 px-4 py-3 text-sm focus:bg-white transition-all"
+                        @change="updateMenuSubCategory(selectedMenuItem, $event.target.value)"
+                      >
+                        <option value="">ไม่ระบุ</option>
+                        <option
+                          v-for="sub in store.catalogCategories.find((cat) => String(cat.id) === String(selectedMenuItem.category))?.subCategories || []"
+                          :key="sub.id"
+                          :value="sub.id"
+                        >
+                          {{ sub.name }}
+                        </option>
+                      </select>
                     </label>
                     <label class="col-span-2 block">
                       <span class="text-xs font-bold text-stone-400 uppercase ml-1">คำอธิบาย</span>
@@ -261,22 +372,23 @@ async function save() {
                     <div class="w-1.5 h-4 bg-brand-500 rounded-full"></div>
                     ตัวเลือกที่ใช้ (Option Groups)
                   </h3>
-                  <label class="block">
-                    <input
-                      :value="Array.isArray(selectedMenuItem.fields) ? selectedMenuItem.fields.join(', ') : selectedMenuItem.fields || ''"
-                      class="w-full rounded-2xl border-stone-200 bg-stone-50 px-4 py-3 text-sm focus:bg-white transition-all"
-                      placeholder="เช่น sweetness, milk, roast"
-                      @input="selectedMenuItem.fields = $event.target.value.split(',').map(s => s.trim()).filter(Boolean)"
-                    />
-                    <div class="mt-3 flex flex-wrap gap-2">
-                      <span v-for="f in (Array.isArray(selectedMenuItem.fields) ? selectedMenuItem.fields : [])" :key="f" class="bg-brand-50 text-brand-600 px-3 py-1 rounded-full text-xs font-bold border border-brand-100">
-                        {{ f }}
-                      </span>
-                    </div>
-                    <p class="mt-4 text-[11px] text-stone-400 bg-stone-50 p-3 rounded-xl border border-dashed">
-                      * ใส่ชื่อ Group ID ที่สร้างไว้ในแท็บ "กลุ่มตัวเลือก" เพื่อให้ลูกค้ายกเลือกได้ เช่น ถ้ามีกลุ่ม sweetness ให้ใส่ sweetness ลงในช่องนี้
-                    </p>
-                  </label>
+                  <div class="grid gap-2">
+                    <button
+                      v-for="group in optionGroupMeta"
+                      :key="group.groupId"
+                      type="button"
+                      :class="[
+                        'flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-bold transition-all',
+                        selectedMenuItem.fields?.includes(group.groupId)
+                          ? 'border-brand-200 bg-brand-50 text-brand-700'
+                          : 'border-stone-200 bg-stone-50 text-stone-500 hover:bg-white'
+                      ]"
+                      @click="toggleMenuOptionGroup(selectedMenuItem, group.groupId)"
+                    >
+                      <span>{{ group.name }}</span>
+                      <span class="text-[10px] uppercase">{{ selectedMenuItem.fields?.includes(group.groupId) ? 'ใช้กับเมนูนี้' : 'ไม่ใช้' }}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -291,7 +403,7 @@ async function save() {
                   </label>
                   <label class="block">
                     <span class="text-xs font-bold text-stone-400 uppercase ml-1">สถานะการขาย</span>
-                    <select v-model="selectedMenuItem.enabled" :class="['mt-1 w-full rounded-2xl border-stone-200 px-4 py-3 text-sm font-bold appearance-none bg-no-repeat bg-[right_1rem_center] transition-all', selectedMenuItem.enabled ? 'bg-green-50 text-green-600' : 'bg-stone-100 text-stone-500']" style="background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22%3E%3Cpath stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22m6 8 4 4 4-4%22/%3E%3C/svg%3E')">
+                    <select v-model="selectedMenuItem.enabled" :class="['mt-1 w-full rounded-2xl border-stone-200 px-4 py-3 text-sm font-bold appearance-none bg-no-repeat bg-[right_1rem_center] transition-all', selectedMenuItem.enabled ? enabledSelectClass : disabledSelectClass]" style="background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 20 20%22%3E%3Cpath stroke=%22%236b7280%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%221.5%22 d=%22m6 8 4 4 4-4%22/%3E%3C/svg%3E')">
                       <option :value="true">เปิดการขายปกติ</option>
                       <option :value="false">ปิดการขายชั่วคราว</option>
                     </select>
@@ -342,8 +454,8 @@ async function save() {
               :key="groupId"
               @click="selectOptionGroup(groupId)"
               :class="[
-                'cursor-pointer p-4 transition-all border-l-4',
-                selectedGroup === groupId ? 'bg-brand-50/50 border-brand-500' : 'border-transparent hover:bg-stone-50'
+                'cursor-pointer m-2 rounded-2xl border p-4 transition-all',
+                selectedGroup === groupId ? 'border-brand-200 bg-brand-50 text-brand-900' : 'border-transparent hover:border-stone-200 hover:bg-stone-50'
               ]"
             >
               <div class="font-bold text-stone-800 tracking-tight">{{ groupId }}</div>
@@ -358,9 +470,13 @@ async function save() {
             <div class="flex justify-between items-end mb-8">
               <div>
                 <div class="text-xs font-bold text-brand-500 uppercase tracking-widest mb-1">Option Group</div>
-                <h2 class="text-3xl font-black text-stone-900">{{ selectedGroup }}</h2>
+                <input
+                  :value="selectedGroupMeta?.name || selectedGroup"
+                  class="mt-1 rounded-2xl border-stone-200 bg-white px-4 py-3 text-3xl font-black text-stone-900 shadow-sm"
+                  @input="updateSelectedGroupName($event.target.value)"
+                />
               </div>
-              <button @click="addOptionToGroup(selectedGroup)" class="bg-stone-900 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-stone-800 transition-all active:scale-95">
+              <button @click="addOptionToGroup(selectedGroup)" class="bg-brand-700 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 hover:bg-brand-600 transition-all active:scale-95">
                 + เพิ่มตัวเลือกในกลุ่ม
               </button>
             </div>
@@ -370,7 +486,7 @@ async function save() {
                 <thead>
                   <tr class="bg-stone-50 text-stone-400 text-[10px] font-black uppercase tracking-widest">
                     <th class="px-6 py-4 border-b">Label (แสดงให้ลูกค้าเห็น)</th>
-                    <th class="px-6 py-4 border-b">Value (เก็บลง DB)</th>
+                    <th class="px-6 py-4 border-b">ID จาก DB</th>
                     <th class="px-6 py-4 border-b">ราคาบวก (+)</th>
                     <th class="px-6 py-4 border-b w-24">ลำดับ</th>
                     <th class="px-6 py-4 border-b w-32">สถานะ</th>
@@ -383,13 +499,10 @@ async function save() {
                       <input v-model="opt.label" class="w-full rounded-xl border-stone-200 bg-transparent px-3 py-2 text-sm font-bold focus:bg-white transition-all" />
                     </td>
                     <td class="px-6 py-3">
-                      <input 
-                        v-model="opt.value" 
-                        :class="[
-                          'w-full rounded-xl border bg-transparent px-3 py-2 text-sm font-bold transition-all',
-                          !opt.value ? 'border-red-300 bg-red-50 focus:bg-white' : 'border-stone-200 text-stone-500 focus:bg-white'
-                        ]" 
-                        placeholder="ต้องระบุค่า..."
+                      <input
+                        :value="opt.optionItemId || 'สร้างใหม่หลังบันทึก'"
+                        disabled
+                        class="w-full rounded-xl border-stone-200 bg-stone-100 px-3 py-2 text-sm font-bold text-stone-400"
                       />
                     </td>
                     <td class="px-6 py-3">
@@ -500,10 +613,10 @@ async function save() {
 </template>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&family=Noto+Sans+Thai:wght@400;500;600;700;800;900&display=swap');
 
 .font-sans {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Manrope', 'Noto Sans Thai', sans-serif;
 }
 
 /* Custom scrollbar */
@@ -515,11 +628,11 @@ async function save() {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #e5e7eb;
+  background: #e0c375;
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #d1d5db;
+  background: #f69d39;
 }
 
 /* Hide spin buttons for number inputs */

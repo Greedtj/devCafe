@@ -171,7 +171,7 @@ export function buildFlexMessage(order) {
         spacing: "md",
         contents: [
           { type: "text", text: "สรุปคำสั่งซื้อ", weight: "bold", size: "xl", wrap: true },
-          { type: "text", text: `Order No. ${order.orderId}`, color: "#8a4f2a" },
+          { type: "text", text: `Order No. ${order.orderId}`, color: "#D92243" },
           { type: "separator", margin: "md" },
           ...order.items.slice(0, 4).map((item) => ({
             type: "box",

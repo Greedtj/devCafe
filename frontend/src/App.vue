@@ -8,21 +8,21 @@ const checkoutOpen = ref(false);
 const productOpen = ref(false);
 
 const categories = computed(() => {
+  const categoryNames = new Map(store.catalogCategories.map((item) => [String(item.id), item.name]));
   const items = new Map();
-  store.menu.forEach((item) => items.set(item.category, true));
-  return Array.from(items.keys()).map((id) => ({
-    id,
-    name: id === "coffee" ? "กาแฟ" : id === "tea" ? "ชา" : "อื่นๆ",
-  }));
+  store.menu.forEach((item) => {
+    const id = String(item.category || item.categoryId || "");
+    if (id) items.set(id, item.categoryName || categoryNames.get(id) || `หมวด ${id}`);
+  });
+  return Array.from(items.entries()).map(([id, name]) => ({ id, name }));
 });
 
-const fieldLabels = {
-  sweetness: "ระดับความหวาน",
-  milk: "ชนิดนม",
-  roast: "ระดับการคั่ว",
-  matcha: "ชนิดมัทฉะ",
-  waterSplit: "แยกน้ำ",
-};
+const fieldLabels = computed(() => {
+  return store.optionGroups.reduce((acc, group) => {
+    acc[group.groupId] = group.name;
+    return acc;
+  }, {});
+});
 
 const lineSendStatus = computed(() => {
   const sendResult = store.orderResult?.sendResult;
@@ -117,7 +117,7 @@ async function tryInitLiff() {
             v-for="cat in categories"
             :key="cat.id"
             class="rounded-full border px-4 py-2 text-sm font-semibold transition"
-            :class="store.category === cat.id ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white/80 text-stone-700'"
+            :class="store.category === cat.id ? 'border-brand-500 bg-brand-500 text-white shadow-sm shadow-brand-500/20' : 'border-brand-100 bg-white/80 text-stone-700 hover:border-brand-200'"
             @click="store.selectCategory(cat.id)"
           >
             {{ cat.name }}
@@ -129,7 +129,7 @@ async function tryInitLiff() {
             v-if="!store.menu.filter((menuItem) => menuItem.category === store.category && menuItem.enabled !== false).length"
             class="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-6 text-stone-500 sm:col-span-2 xl:col-span-3"
           >
-            ยังไม่มีเมนูในฐานข้อมูล `dev_cafe_menu` ตอนนี้ ให้ admin เพิ่มข้อมูลจริงก่อน ระบบจะดึงมาแสดงอัตโนมัติ
+            ยังไม่มีเมนูในหมวดนี้ ตอนนี้ ให้ admin เพิ่มหรือเปิดขายเมนูในฐานข้อมูลใหม่ก่อน ระบบจะดึงมาแสดงอัตโนมัติ
           </div>
           <article
             v-for="item in store.menu.filter((menuItem) => menuItem.category === store.category && menuItem.enabled !== false)"
@@ -144,7 +144,7 @@ async function tryInitLiff() {
             <div class="mt-4 flex items-center justify-between gap-3">
               <small class="text-xs text-stone-500">{{ item.fields.length ? `${item.fields.length} option groups` : 'quick add' }}</small>
               <button
-                class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5"
+                class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-4 py-2 text-sm font-bold text-white shadow-sm shadow-brand-500/20 transition hover:-translate-y-0.5"
                 @click="tryOpenProduct(item.id)"
               >
                 เลือก
@@ -213,7 +213,7 @@ async function tryInitLiff() {
             <strong>฿{{ store.cartTotal }}</strong>
           </div>
           <button
-            class="mt-4 w-full rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            class="mt-4 w-full rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-4 py-3 font-bold text-white shadow-sm shadow-brand-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="!store.cart.length"
             @click="checkoutOpen = true"
           >
@@ -336,7 +336,7 @@ async function tryInitLiff() {
               ยกเลิก
             </button>
             <button
-              class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white"
+              class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white shadow-sm shadow-brand-500/20"
               type="button"
               @click="store.addDraftToCart(); productOpen = false"
             >
@@ -380,7 +380,7 @@ async function tryInitLiff() {
             <button class="rounded-full border border-stone-200 px-4 py-3 font-semibold" type="button" @click="checkoutOpen = false">
               กลับ
             </button>
-            <button class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white" type="button" @click="confirmCheckout">
+            <button class="rounded-full bg-gradient-to-r from-brand-500 to-brand-400 px-5 py-3 font-bold text-white shadow-sm shadow-brand-500/20" type="button" @click="confirmCheckout">
               ยืนยันส่งออเดอร์
             </button>
           </div>

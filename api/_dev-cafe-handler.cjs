@@ -81,38 +81,65 @@ async function bootstrap(query) {
 }
 
 async function readCatalog() {
-  const [menuRows, optionRows, settings] = await Promise.all([
-    prisma.menuMaster.findMany({
-      where: { enabled: true },
-      orderBy: [{ category: "asc" }, { name: "asc" }],
+  const [categories, menus, optionGroups] = await Promise.all([
+    prisma.category.findMany({
+      where: { isActive: { not: false } },
+      include: { subCategory: { where: { isActive: { not: false } }, orderBy: [{ sortOrder: "asc" }, { subCategoryName: "asc" }] } },
+      orderBy: [{ sortOrder: "asc" }, { categoryName: "asc" }],
     }),
-    prisma.optionMaster.findMany({
-      where: { enabled: true },
-      orderBy: [{ groupId: "asc" }, { sortOrder: "asc" }, { label: "asc" }],
+    prisma.menu.findMany({
+      where: { isActive: { not: false } },
+      include: {
+        category: true,
+        subCategory: true,
+        menuOptionGroup: {
+          where: { isActive: { not: false } },
+          include: { optionGroup: true },
+          orderBy: [{ sortOrder: "asc" }, { optionGroupId: "asc" }],
+        },
+      },
+      orderBy: [{ category: { sortOrder: "asc" } }, { menuName: "asc" }],
     }),
-    readSettings(),
+    prisma.optionGroup.findMany({
+      where: { isActive: { not: false } },
+      include: {
+        optionItem: {
+          where: { isActive: { not: false } },
+          orderBy: [{ sortOrder: "asc" }, { optionItemName: "asc" }],
+        },
+      },
+      orderBy: [{ sortOrder: "asc" }, { optionGroupName: "asc" }],
+    }),
   ]);
 
   return {
     ok: true,
     source: "dev-cafe-db",
-    menu: menuRows.map(mapMenu),
-    options: optionRows.map(mapOption),
-    settings,
+    categories: categories.map(mapCategory),
+    menu: menus.map(mapMenu),
+    options: optionGroups.flatMap(mapOptionGroupOptions),
+    optionGroups: optionGroups.map(mapOptionGroup),
+    settings: {},
   };
 }
 
 async function readOrders(userId = "") {
-  const where = userId ? { userId: String(userId) } : {};
-  const orders = await prisma.order.findMany({
+  const where = userId ? { user: { lineToken: String(userId) } } : {};
+  const orders = await prisma.orderHeader.findMany({
     where,
     include: {
-      items: {
-        orderBy: { lineNo: "asc" },
+      user: true,
+      orderItem: {
+        include: {
+          orderItemOption: {
+            orderBy: { orderItemOptionId: "asc" },
+          },
+        },
+        orderBy: { orderItemId: "asc" },
       },
     },
     orderBy: {
-      createdAt: "desc",
+      createDate: "desc",
     },
     take: 50,
   });
@@ -127,50 +154,70 @@ async function createOrder(payload) {
   const items = Array.isArray(payload.items) ? payload.items : [];
   if (!items.length) return { ok: false, error: "missing items" };
 
-  const orderId = `OC${Date.now().toString().slice(-8)}`;
+  const orderNo = `OC${Date.now().toString().slice(-8)}`;
   const createdAt = new Date();
   const total = toDecimal(payload.total);
-  const status = "pending-payment";
-  const paymentStatus = "unpaid";
+  const status = "PENDING";
+  const paymentStatus = "UNPAID";
   const note = String(payload.note || "").trim();
 
   const order = await prisma.$transaction(async (tx) => {
-    await upsertCustomer(customer, tx);
+    const dbUser = await upsertCustomer(customer, tx);
 
-    return tx.order.create({
+    return tx.orderHeader.create({
       data: {
-        orderId,
-        createdAt,
-        userId: String(customer.userId),
-        displayName: customer.displayName || "",
-        total,
-        status,
+        orderNo,
+        orderType: "TAKEAWAY",
+        orderStatus: status,
+        customerName: customer.displayName || "Guest",
+        subtotalAmount: total,
+        discountAmount: toDecimal(0),
+        totalAmount: total,
         paymentStatus,
-        note,
-        items: {
-          create: items.map((item, index) => {
+        remark: note,
+        createDate: createdAt,
+        createUser: String(customer.userId),
+        userId: dbUser.userId,
+        orderItem: {
+          create: items.map((item) => {
             const qty = Number(item.qty || 1);
             const unitPriceValue = Number(item.unitPrice ?? (qty ? Number(item.price || 0) / qty : 0));
             const lineTotalValue = Number(item.price ?? unitPriceValue * qty);
+            const optionExtraPrice = Math.max(0, unitPriceValue - Number(item.basePrice || 0));
+            const optionEntries = Object.entries(item.options || {})
+              .map(([groupId, value]) => ({
+                groupId: toInt(groupId),
+                value: toInt(value),
+              }))
+              .filter((entry) => entry.groupId && entry.value);
 
             return {
-              lineNo: index + 1,
-              productId: String(item.productId || ""),
-              productName: String(item.productName || item.productId || ""),
-              qty,
+              menuId: toInt(item.productId),
+              menuName: String(item.productName || item.productId || ""),
+              basePrice: toDecimal(Number(item.basePrice ?? unitPriceValue - optionExtraPrice)),
+              quantity: qty,
+              optionExtraPrice: toDecimal(optionExtraPrice),
               unitPrice: toDecimal(unitPriceValue),
-              lineTotal: toDecimal(lineTotalValue),
-              optionSummary: String(item.summary || item.optionSummary || ""),
-              note: String(item.note || ""),
-              rawOptions: JSON.stringify(item.options || {}),
-              createdAt,
+              totalPrice: toDecimal(lineTotalValue),
+              remark: String(item.note || ""),
+              orderItemOption: {
+                create: optionEntries.map((entry) => ({
+                  optionGroupId: entry.groupId,
+                  optionGroupName: String(item.optionLabels?.[entry.groupId]?.groupName || item.optionLabels?.[String(entry.groupId)]?.groupName || ""),
+                  optionItemId: entry.value,
+                  optionItemName: String(item.optionLabels?.[entry.groupId]?.label || item.optionLabels?.[String(entry.groupId)]?.label || ""),
+                  extraPrice: toDecimal(Number(item.optionLabels?.[entry.groupId]?.price || item.optionLabels?.[String(entry.groupId)]?.price || 0)),
+                })),
+              },
             };
           }),
         },
       },
       include: {
-        items: {
-          orderBy: { lineNo: "asc" },
+        user: true,
+        orderItem: {
+          include: { orderItemOption: { orderBy: { orderItemOptionId: "asc" } } },
+          orderBy: { orderItemId: "asc" },
         },
       },
     });
@@ -182,10 +229,6 @@ async function createOrder(payload) {
   const lineMessageId = getLineMessageId(sendResult);
 
   if (lineMessageId) {
-    await prisma.order.update({
-      where: { orderId },
-      data: { lineMessageId },
-    });
     mappedOrder.lineMessageId = lineMessageId;
   }
 
@@ -201,81 +244,84 @@ async function createOrder(payload) {
 async function saveAdminState(payload) {
   const menu = Array.isArray(payload.menu) ? payload.menu : [];
   const options = Array.isArray(payload.options) ? payload.options : [];
-  const settings = payload.settings || {};
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
-    await tx.menuMaster.deleteMany({});
-    if (menu.length) {
-      await tx.menuMaster.createMany({
-        data: menu.map((item) => ({
-          id: String(item.id || `menu-${Date.now()}`),
-          category: String(item.category || "other"),
-          name: String(item.name || "Untitled menu"),
-          description: String(item.description || ""),
-          basePrice: toDecimal(item.basePrice || 0),
-          enabled: item.enabled !== false,
-          fields: Array.isArray(item.fields) ? item.fields.join(",") : String(item.fields || ""),
-          imageUrl: String(item.imageUrl || ""),
-          createdAt: item.createdAt ? new Date(item.createdAt) : now,
-          updatedAt: now,
-        })),
-      });
+    const activeMenuIds = [];
+    const optionGroupIdMap = await syncOptionGroups(tx, options, now);
+
+    for (const item of menu) {
+      const category = await ensureCategory(tx, item.categoryId || item.category, item.categoryName || item.category || "ทั่วไป", now);
+      const subCategoryId = await ensureSubCategory(tx, category.categoryId, item.subCategoryId, item.subCategoryName, now);
+      const menuId = toInt(item.menuId || item.id);
+      const data = {
+        menuName: String(item.name || item.menuName || "เมนูใหม่"),
+        categoryId: category.categoryId,
+        subCategoryId,
+        basePrice: toDecimal(item.basePrice || 0),
+        description: String(item.description || ""),
+        imageUrl: String(item.imageUrl || ""),
+        isActive: item.enabled !== false,
+        lastDate: now,
+        lastUser: "admin",
+      };
+      const saved = menuId
+        ? await tx.menu.update({ where: { menuId }, data })
+        : await tx.menu.create({ data: { ...data, createDate: now, createUser: "admin" } });
+
+      activeMenuIds.push(saved.menuId);
+      await tx.menuOptionGroup.deleteMany({ where: { menuId: saved.menuId } });
+      const groupIds = (Array.isArray(item.fields) ? item.fields : String(item.fields || "").split(","))
+        .map((field) => optionGroupIdMap.get(String(field)) || toInt(field))
+        .filter(Boolean);
+
+      for (const [index, optionGroupId] of [...new Set(groupIds)].entries()) {
+        await tx.menuOptionGroup.upsert({
+          where: { menuId_optionGroupId: { menuId: saved.menuId, optionGroupId } },
+          create: {
+            menuId: saved.menuId,
+            optionGroupId,
+            isRequired: false,
+            sortOrder: index + 1,
+            isActive: true,
+          },
+          update: {
+            sortOrder: index + 1,
+            isActive: true,
+          },
+        });
+      }
     }
 
-    await tx.optionMaster.deleteMany({});
-    if (options.length) {
-      await tx.optionMaster.createMany({
-        data: options.map((item) => ({
-          groupId: String(item.groupId || ""),
-          value: String(item.value || ""),
-          label: String(item.label || ""),
-          price: toDecimal(item.price || 0),
-          sortOrder: Number(item.sortOrder || 0),
-          enabled: item.enabled !== false,
-          createdAt: item.createdAt ? new Date(item.createdAt) : now,
-          updatedAt: now,
-        })),
+    if (activeMenuIds.length) {
+      await tx.menu.updateMany({
+        where: { menuId: { notIn: activeMenuIds } },
+        data: { isActive: false, lastDate: now, lastUser: "admin" },
       });
     }
-
-    await Promise.all(
-      Object.entries(settings).map(([key, value]) =>
-        tx.setting.upsert({
-          where: { key },
-          create: { key, value: String(value ?? ""), updatedAt: now },
-          update: { value: String(value ?? ""), updatedAt: now },
-        })
-      )
-    );
   });
 
   return { ok: true, source: "dev-cafe-db" };
 }
 
-async function readSettings() {
-  const rows = await prisma.setting.findMany();
-  return rows.reduce((acc, row) => {
-    acc[row.key] = row.value;
-    return acc;
-  }, {});
-}
-
 async function upsertCustomer(customer, client = prisma) {
   const now = new Date();
-  return client.customer.upsert({
-    where: { userId: String(customer.userId) },
+  return client.user.upsert({
+    where: { lineToken: String(customer.userId) },
     create: {
-      userId: String(customer.userId),
-      displayName: customer.displayName || "",
-      pictureUrl: customer.pictureUrl || "",
-      firstSeenAt: customer.firstSeenAt ? new Date(customer.firstSeenAt) : now,
-      lastSeenAt: now,
+      lineToken: String(customer.userId),
+      name: customer.displayName || "Guest",
+      isActive: true,
+      createDate: now,
+      createUser: "line",
+      lastDate: now,
+      lastUser: "line",
     },
     update: {
-      displayName: customer.displayName || "",
-      pictureUrl: customer.pictureUrl || "",
-      lastSeenAt: now,
+      name: customer.displayName || "Guest",
+      isActive: true,
+      lastDate: now,
+      lastUser: "line",
     },
   });
 }
@@ -371,67 +417,258 @@ function buildFlexMessage(order) {
   };
 }
 
-function mapMenu(row) {
+function mapCategory(row) {
   return {
-    id: row.id,
-    category: row.category,
-    name: row.name,
+    id: String(row.categoryId),
+    categoryId: row.categoryId,
+    name: row.categoryName,
     description: row.description || "",
-    basePrice: Number(row.basePrice || 0),
-    enabled: row.enabled,
-    fields: String(row.fields || "")
-      .split(",")
-      .map((part) => part.trim())
-      .filter(Boolean),
-    imageUrl: row.imageUrl || "",
-    createdAt: row.createdAt?.toISOString?.() || row.createdAt || "",
-    updatedAt: row.updatedAt?.toISOString?.() || row.updatedAt || "",
+    sortOrder: Number(row.sortOrder || 0),
+    enabled: row.isActive !== false,
+    subCategories: (row.subCategory || []).map((item) => ({
+      id: String(item.subCategoryId),
+      subCategoryId: item.subCategoryId,
+      categoryId: item.categoryId,
+      name: item.subCategoryName,
+      description: item.description || "",
+      sortOrder: Number(item.sortOrder || 0),
+      enabled: item.isActive !== false,
+    })),
   };
 }
 
-function mapOption(row) {
+function mapMenu(row) {
   return {
-    groupId: row.groupId,
-    value: row.value,
-    label: row.label,
-    price: Number(row.price || 0),
-    sortOrder: Number(row.sortOrder || 0),
-    enabled: row.enabled,
-    createdAt: row.createdAt?.toISOString?.() || row.createdAt || "",
-    updatedAt: row.updatedAt?.toISOString?.() || row.updatedAt || "",
+    id: String(row.menuId),
+    menuId: row.menuId,
+    category: String(row.categoryId),
+    categoryId: row.categoryId,
+    categoryName: row.category?.categoryName || "",
+    subCategoryId: row.subCategoryId || null,
+    subCategoryName: row.subCategory?.subCategoryName || "",
+    name: row.menuName,
+    description: row.description || "",
+    basePrice: Number(row.basePrice || 0),
+    enabled: row.isActive !== false,
+    fields: (row.menuOptionGroup || []).map((link) => String(link.optionGroupId)),
+    optionGroups: (row.menuOptionGroup || []).map((link) => ({
+      groupId: String(link.optionGroupId),
+      optionGroupId: link.optionGroupId,
+      name: link.optionGroup?.optionGroupName || "",
+      required: link.isRequired === true,
+      sortOrder: Number(link.sortOrder || 0),
+    })),
+    imageUrl: row.imageUrl || "",
+    createdAt: row.createDate?.toISOString?.() || row.createDate || "",
+    updatedAt: row.lastDate?.toISOString?.() || row.lastDate || "",
   };
+}
+
+function mapOptionGroup(row) {
+  return {
+    groupId: String(row.optionGroupId),
+    optionGroupId: row.optionGroupId,
+    name: row.optionGroupName,
+    choiceType: row.choiceType || "S",
+    isRequired: row.isRequired === true,
+    minSelect: Number(row.minSelect || 0),
+    maxSelect: Number(row.maxSelect || 1),
+    sortOrder: Number(row.sortOrder || 0),
+    enabled: row.isActive !== false,
+  };
+}
+
+function mapOptionGroupOptions(group) {
+  return (group.optionItem || []).map((row) => ({
+    groupId: String(group.optionGroupId),
+    optionGroupId: group.optionGroupId,
+    groupName: group.optionGroupName,
+    choiceType: group.choiceType || "S",
+    value: String(row.optionItemId),
+    optionItemId: row.optionItemId,
+    label: row.optionItemName,
+    price: Number(row.extraPrice || 0),
+    sortOrder: Number(row.sortOrder || 0),
+    enabled: group.isActive !== false && row.isActive !== false,
+    createdAt: row.createDate?.toISOString?.() || row.createDate || "",
+    updatedAt: row.lastDate?.toISOString?.() || row.lastDate || "",
+  }));
 }
 
 function mapOrder(row) {
   return {
-    orderId: row.orderId,
-    createdAt: row.createdAt?.toISOString?.() || row.createdAt || "",
+    orderId: row.orderNo,
+    orderNo: row.orderNo,
+    orderDbId: row.orderId,
+    createdAt: row.createDate?.toISOString?.() || row.createDate || "",
     customer: {
-      userId: row.userId,
-      displayName: row.displayName || "",
+      userId: row.user?.lineToken || "",
+      displayName: row.customerName || row.user?.name || "",
     },
-    total: Number(row.total || 0),
-    status: row.status,
-    paymentStatus: row.paymentStatus,
-    lineMessageId: row.lineMessageId || "",
-    note: row.note || "",
-    items: (row.items || []).map((item) => ({
-      id: item.id,
-      orderId: item.orderId,
-      lineNo: item.lineNo,
-      productId: item.productId,
-      productName: item.productName,
-      qty: Number(item.qty || 1),
-      unitPrice: Number(item.unitPrice || 0),
-      lineTotal: Number(item.lineTotal || 0),
-      price: Number(item.lineTotal || 0),
-      optionSummary: item.optionSummary || "",
-      summary: item.optionSummary || "",
-      note: item.note || "",
-      options: parseJson(item.rawOptions, {}),
-      createdAt: item.createdAt?.toISOString?.() || item.createdAt || "",
-    })),
+    total: Number(row.totalAmount || 0),
+    status: row.orderStatus || "",
+    paymentStatus: row.paymentStatus || "",
+    lineMessageId: "",
+    note: row.remark || "",
+    items: (row.orderItem || []).map((item, index) => {
+      const optionSummary = (item.orderItemOption || [])
+        .map((option) => option.optionItemName)
+        .filter(Boolean)
+        .join(" · ");
+
+      return {
+        id: item.orderItemId,
+        orderId: item.orderId,
+        lineNo: index + 1,
+        productId: String(item.menuId),
+        productName: item.menuName,
+        qty: Number(item.quantity || 1),
+        unitPrice: Number(item.unitPrice || 0),
+        lineTotal: Number(item.totalPrice || 0),
+        price: Number(item.totalPrice || 0),
+        optionSummary,
+        summary: optionSummary,
+        note: item.remark || "",
+        options: (item.orderItemOption || []).reduce((acc, option) => {
+          acc[String(option.optionGroupId)] = String(option.optionItemId);
+          return acc;
+        }, {}),
+        createdAt: row.createDate?.toISOString?.() || row.createDate || "",
+      };
+    }),
   };
+}
+
+async function syncOptionGroups(tx, options, now) {
+  const grouped = options.reduce((acc, item) => {
+    const groupKey = String(item.groupId || item.optionGroupId || item.groupName || "").trim();
+    if (!groupKey) return acc;
+    if (!acc.has(groupKey)) acc.set(groupKey, []);
+    acc.get(groupKey).push(item);
+    return acc;
+  }, new Map());
+  const groupIdMap = new Map();
+  const activeGroupIds = [];
+
+  for (const [groupKey, rows] of grouped.entries()) {
+    const sample = rows[0] || {};
+    const optionGroupId = toInt(sample.optionGroupId || groupKey);
+    const groupData = {
+      optionGroupName: String(sample.groupName || sample.optionGroupName || groupKey),
+      choiceType: String(sample.choiceType || "S").slice(0, 1),
+      isRequired: sample.isRequired === true,
+      minSelect: Number(sample.minSelect || 0),
+      maxSelect: Number(sample.maxSelect || 1),
+      sortOrder: Number(sample.groupSortOrder || sample.sortOrder || 0),
+      isActive: sample.groupEnabled !== false,
+      lastDate: now,
+      lastUser: "admin",
+    };
+
+    const group = optionGroupId
+      ? await tx.optionGroup.update({ where: { optionGroupId }, data: groupData })
+      : await tx.optionGroup.create({ data: { ...groupData, createDate: now, createUser: "admin" } });
+
+    activeGroupIds.push(group.optionGroupId);
+    groupIdMap.set(groupKey, group.optionGroupId);
+    groupIdMap.set(String(group.optionGroupId), group.optionGroupId);
+
+    const activeItemIds = [];
+    for (const item of rows) {
+      const optionItemId = toInt(item.optionItemId || item.value);
+      const itemData = {
+        optionGroupId: group.optionGroupId,
+        optionItemName: String(item.label || item.optionItemName || "ตัวเลือกใหม่"),
+        extraPrice: toDecimal(item.price || item.extraPrice || 0),
+        sortOrder: Number(item.sortOrder || 0),
+        isActive: item.enabled !== false,
+        lastDate: now,
+        lastUser: "admin",
+      };
+      const saved = optionItemId
+        ? await tx.optionItem.update({ where: { optionItemId }, data: itemData })
+        : await tx.optionItem.create({ data: { ...itemData, createDate: now, createUser: "admin" } });
+      activeItemIds.push(saved.optionItemId);
+    }
+
+    if (activeItemIds.length) {
+      await tx.optionItem.updateMany({
+        where: { optionGroupId: group.optionGroupId, optionItemId: { notIn: activeItemIds } },
+        data: { isActive: false, lastDate: now, lastUser: "admin" },
+      });
+    }
+  }
+
+  if (activeGroupIds.length) {
+    await tx.optionGroup.updateMany({
+      where: { optionGroupId: { notIn: activeGroupIds } },
+      data: { isActive: false, lastDate: now, lastUser: "admin" },
+    });
+  }
+
+  return groupIdMap;
+}
+
+async function ensureCategory(tx, categoryIdOrName, fallbackName, now) {
+  const categoryId = toInt(categoryIdOrName);
+  if (categoryId) {
+    return tx.category.update({
+      where: { categoryId },
+      data: { categoryName: String(fallbackName || `หมวด ${categoryId}`), isActive: true, lastDate: now, lastUser: "admin" },
+    });
+  }
+
+  const categoryName = String(fallbackName || categoryIdOrName || "ทั่วไป").trim() || "ทั่วไป";
+  const existing = await tx.category.findFirst({ where: { categoryName } });
+  if (existing) {
+    return tx.category.update({
+      where: { categoryId: existing.categoryId },
+      data: { isActive: true, lastDate: now, lastUser: "admin" },
+    });
+  }
+
+  return tx.category.create({
+    data: {
+      categoryName,
+      sortOrder: 0,
+      isActive: true,
+      createDate: now,
+      createUser: "admin",
+      lastDate: now,
+      lastUser: "admin",
+    },
+  });
+}
+
+async function ensureSubCategory(tx, categoryId, subCategoryIdOrName, fallbackName, now) {
+  const subCategoryId = toInt(subCategoryIdOrName);
+  if (subCategoryId) {
+    await tx.subCategory.update({
+      where: { subCategoryId },
+      data: { categoryId, subCategoryName: String(fallbackName || `กลุ่มย่อย ${subCategoryId}`), isActive: true, lastDate: now, lastUser: "admin" },
+    });
+    return subCategoryId;
+  }
+
+  const subCategoryName = String(fallbackName || "").trim();
+  if (!subCategoryName) return null;
+
+  const existing = await tx.subCategory.findFirst({ where: { categoryId, subCategoryName } });
+  if (existing) return existing.subCategoryId;
+
+  const saved = await tx.subCategory.create({
+    data: {
+      categoryId,
+      subCategoryName,
+      sortOrder: 0,
+      isActive: true,
+      createDate: now,
+      createUser: "admin",
+      lastDate: now,
+      lastUser: "admin",
+    },
+  });
+  return saved.subCategoryId;
 }
 
 function getLineMessageId(sendResult) {
@@ -449,6 +686,11 @@ function parseJson(value, fallback) {
 
 function toDecimal(value) {
   return new Prisma.Decimal(Number(value || 0));
+}
+
+function toInt(value) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
 }
 
 async function parseRequest(req) {

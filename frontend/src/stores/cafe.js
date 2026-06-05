@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { categories, optionGroups as fallbackOptionGroups } from "../services/catalog";
 import {
+  bootstrapApi,
   fetchMenuApi,
   fetchOrdersApi,
   saveAdminState,
@@ -23,6 +24,8 @@ export const useCafeStore = defineStore("cafe", () => {
   });
   const user = ref(loadUser());
   const settings = ref(defaultSettings());
+  const catalogCategories = ref([]);
+  const optionGroups = ref([]);
   const menu = ref([]);
   const options = ref([]);
   const orders = ref([]);
@@ -34,11 +37,16 @@ export const useCafeStore = defineStore("cafe", () => {
   async function bootstrap(lineUser) {
     if (lineUser) user.value = lineUser;
     try {
-      const data = await fetchMenuApi();
+      const data = await bootstrapApi(user.value);
+      if (Array.isArray(data.categories)) catalogCategories.value = data.categories;
+      if (Array.isArray(data.optionGroups)) optionGroups.value = normalizeOptionGroups(data.optionGroups);
       if (Array.isArray(data.menu)) menu.value = normalizeMenu(data.menu);
       if (Array.isArray(data.options)) options.value = normalizeOptions(data.options);
       if (data.settings) settings.value = data.settings;
       if (data.profile?.displayName) user.value = data.profile;
+      if (!category.value || !menu.value.some((item) => item.category === category.value)) {
+        category.value = catalogCategories.value[0]?.id || menu.value[0]?.category || "";
+      }
 
       void loadOrders(user.value?.userId || "");
     } catch (error) {
@@ -80,9 +88,11 @@ export const useCafeStore = defineStore("cafe", () => {
     cart.value.push({
       productId: selectedProduct.value.id,
       productName: selectedProduct.value.name,
+      basePrice: selectedProduct.value.basePrice,
       qty: draft.qty,
       unitPrice,
       options: { ...draft.options },
+      optionLabels: buildOptionLabels(draft.options),
       note: draft.note.trim(),
       summary: buildItemSummary(draft.options, draft.note),
       price,
@@ -133,9 +143,12 @@ export const useCafeStore = defineStore("cafe", () => {
 
   async function saveAdmin(payload) {
     const result = await saveAdminState(payload);
-    if (payload.menu) menu.value = normalizeMenu(payload.menu);
-    if (payload.options) options.value = normalizeOptions(payload.options);
-    if (payload.settings) settings.value = payload.settings;
+    const fresh = await fetchMenuApi();
+    if (Array.isArray(fresh.categories)) catalogCategories.value = fresh.categories;
+    if (Array.isArray(fresh.optionGroups)) optionGroups.value = normalizeOptionGroups(fresh.optionGroups);
+    if (Array.isArray(fresh.menu)) menu.value = normalizeMenu(fresh.menu);
+    if (Array.isArray(fresh.options)) options.value = normalizeOptions(fresh.options);
+    if (fresh.settings) settings.value = fresh.settings;
     return result;
   }
 
@@ -156,6 +169,19 @@ export const useCafeStore = defineStore("cafe", () => {
     });
     if (note) parts.push(note);
     return parts.join(" · ");
+  }
+
+  function buildOptionLabels(itemOptions) {
+    return Object.entries(itemOptions || {}).reduce((acc, [groupId, value]) => {
+      const option = getOptionGroupOptions(groupId).find((item) => String(item.value) === String(value));
+      if (!option) return acc;
+      acc[groupId] = {
+        groupName: option.groupName || optionGroups.value.find((group) => group.groupId === String(groupId))?.name || groupId,
+        label: option.label,
+        price: Number(option.price || 0),
+      };
+      return acc;
+    }, {});
   }
 
   function getOptionGroupOptions(groupId) {
@@ -182,6 +208,8 @@ export const useCafeStore = defineStore("cafe", () => {
     draft,
     user,
     settings,
+    catalogCategories,
+    optionGroups,
     menu,
     options,
     orders,
@@ -207,12 +235,32 @@ function normalizeMenu(menu) {
     ...item,
     basePrice: Number(item.basePrice || 0),
     enabled: item.enabled !== false && item.enabled !== "false",
+    category: String(item.category || item.categoryId || ""),
+    categoryId: item.categoryId || Number(item.category) || null,
+    categoryName: item.categoryName || "",
+    subCategoryId: item.subCategoryId || null,
+    subCategoryName: item.subCategoryName || "",
     fields: Array.isArray(item.fields)
       ? item.fields
       : String(item.fields || "")
           .split(",")
           .map((part) => part.trim())
           .filter(Boolean),
+  }));
+}
+
+function normalizeOptionGroups(groups) {
+  return (groups || []).map((item) => ({
+    ...item,
+    groupId: String(item.groupId || item.optionGroupId || "").trim(),
+    optionGroupId: item.optionGroupId || Number(item.groupId) || null,
+    name: String(item.name || item.optionGroupName || item.groupId || "").trim(),
+    choiceType: String(item.choiceType || "S").slice(0, 1),
+    isRequired: item.isRequired === true,
+    minSelect: Number(item.minSelect || 0),
+    maxSelect: Number(item.maxSelect || 1),
+    sortOrder: Number(item.sortOrder || 0),
+    enabled: item.enabled !== false && item.enabled !== "false",
   }));
 }
 
@@ -226,6 +274,9 @@ function buildOptionGroupMap(optionRows) {
       ...item,
       value: String(item.value || "").trim(),
       label: String(item.label || "").trim(),
+      groupName: String(item.groupName || "").trim(),
+      optionGroupId: item.optionGroupId || Number(groupId) || null,
+      optionItemId: item.optionItemId || Number(item.value) || null,
       price: Number(item.price || 0),
       sortOrder: Number(item.sortOrder || 0),
       enabled: item.enabled !== false && item.enabled !== "false",
@@ -241,6 +292,9 @@ function normalizeOptions(optionRows) {
     groupId: String(item.groupId || "").trim(),
     value: String(item.value || "").trim(),
     label: String(item.label || "").trim(),
+    groupName: String(item.groupName || "").trim(),
+    optionGroupId: item.optionGroupId || Number(item.groupId) || null,
+    optionItemId: item.optionItemId || Number(item.value) || null,
     price: Number(item.price || 0),
     sortOrder: Number(item.sortOrder || 0),
     enabled: item.enabled !== false && item.enabled !== "false",

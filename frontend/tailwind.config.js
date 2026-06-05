@@ -4,7 +4,8 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          "Inter",
+          "Manrope",
+          "Noto Sans Thai",
           "ui-sans-serif",
           "system-ui",
           "-apple-system",
@@ -15,20 +16,20 @@ export default {
       },
       colors: {
         brand: {
-          50: "#fbf4ee",
-          100: "#f4e5d7",
-          200: "#e8c7b0",
-          300: "#d79f7b",
-          400: "#c06b34",
-          500: "#8a4f2a",
-          600: "#6e3d22",
-          700: "#54301b",
-          800: "#3f2416",
-          900: "#28170d",
+          50: "#FFF5E5",
+          100: "#FBE8C7",
+          200: "#E0C375",
+          300: "#F8B861",
+          400: "#F69D39",
+          500: "#D92243",
+          600: "#B91939",
+          700: "#8F132D",
+          800: "#641021",
+          900: "#340711",
         },
       },
       boxShadow: {
-        soft: "0 20px 60px rgba(73, 50, 27, 0.12)",
+        soft: "0 20px 60px rgba(217, 34, 67, 0.14)",
       },
       borderRadius: {
         xl2: "1.5rem",

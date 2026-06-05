@@ -7,84 +7,160 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model MenuMaster {
-  id          String   @id @db.VarChar(100)
-  category    String   @default("other") @db.VarChar(80)
-  name        String   @db.VarChar(200)
-  description String?  @db.VarChar(1000)
-  basePrice   Decimal  @default(0) @db.Decimal(10, 2)
-  enabled     Boolean  @default(true)
-  fields      String?  @db.VarChar(500)
-  imageUrl    String?  @db.VarChar(1000)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("dev_cafe_menu")
+model category {
+  categoryId   Int           @id @default(autoincrement())
+  categoryName String        @db.VarChar(100)
+  description  String?
+  sortOrder    Int?          @default(0)
+  isActive     Boolean?      @default(true)
+  createDate   DateTime?     @default(now()) @db.Timestamp(6)
+  createUser   String?       @db.VarChar(100)
+  lastDate     DateTime?     @db.Timestamp(6)
+  lastUser     String?       @db.VarChar(100)
+  menu         menu[]
+  subCategory  subCategory[]
 }
 
-model OptionMaster {
-  groupId   String   @db.VarChar(100)
-  value     String   @db.VarChar(100)
-  label     String   @db.VarChar(200)
-  price     Decimal  @default(0) @db.Decimal(10, 2)
-  sortOrder Int      @default(0)
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@id([groupId, value])
-  @@map("dev_cafe_options")
+model menu {
+  menuId          Int               @id @default(autoincrement())
+  menuName        String            @db.VarChar(150)
+  categoryId      Int
+  subCategoryId   Int?
+  basePrice       Decimal           @default(0) @db.Decimal(10, 2)
+  description     String?
+  imageUrl        String?
+  isActive        Boolean?          @default(true)
+  createDate      DateTime?         @default(now()) @db.Timestamp(6)
+  createUser      String?           @db.VarChar(100)
+  lastDate        DateTime?         @db.Timestamp(6)
+  lastUser        String?           @db.VarChar(100)
+  category        category          @relation(fields: [categoryId], references: [categoryId], onDelete: NoAction, onUpdate: NoAction, map: "fk_menu_category")
+  subCategory     subCategory?      @relation(fields: [subCategoryId], references: [subCategoryId], onDelete: NoAction, onUpdate: NoAction, map: "fk_menu_subCategory")
+  menuOptionGroup menuOptionGroup[]
+  orderItem       orderItem[]
 }
 
-model Order {
-  orderId       String      @id @db.VarChar(40)
-  createdAt     DateTime    @default(now())
-  userId        String      @db.VarChar(120)
-  displayName   String?     @db.VarChar(200)
-  total         Decimal     @default(0) @db.Decimal(10, 2)
-  status        String      @default("pending-payment") @db.VarChar(60)
-  paymentStatus String      @default("unpaid") @db.VarChar(60)
-  lineMessageId String?     @db.VarChar(120)
-  note          String?     @db.VarChar(1000)
-  items         OrderItem[]
+model menuOptionGroup {
+  menuOptionGroupId Int         @id @default(autoincrement())
+  menuId            Int
+  optionGroupId     Int
+  isRequired        Boolean?    @default(false)
+  sortOrder         Int?        @default(0)
+  isActive          Boolean?    @default(true)
+  menu              menu        @relation(fields: [menuId], references: [menuId], onDelete: NoAction, onUpdate: NoAction, map: "fk_menuOptionGroup_menu")
+  optionGroup       optionGroup @relation(fields: [optionGroupId], references: [optionGroupId], onDelete: NoAction, onUpdate: NoAction, map: "fk_menuOptionGroup_optionGroup")
 
-  @@index([userId, createdAt])
-  @@map("dev_cafe_orders")
+  @@unique([menuId, optionGroupId], map: "uq_menu_optionGroup")
 }
 
-model OrderItem {
-  id            Int      @id @default(autoincrement())
-  orderId       String   @db.VarChar(40)
-  lineNo        Int
-  productId     String   @db.VarChar(100)
-  productName   String   @db.VarChar(200)
-  qty           Int      @default(1)
-  unitPrice     Decimal  @default(0) @db.Decimal(10, 2)
-  lineTotal     Decimal  @default(0) @db.Decimal(10, 2)
-  optionSummary String?  @db.VarChar(1000)
-  note          String?  @db.VarChar(1000)
-  rawOptions    String?  @db.Text
-  createdAt     DateTime @default(now())
-  order         Order    @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
-
-  @@index([orderId])
-  @@map("dev_cafe_order_items")
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model optionGroup {
+  optionGroupId   Int               @id @default(autoincrement())
+  optionGroupName String            @db.VarChar(100)
+  choiceType      String            @default("S") @db.Char(1)
+  isRequired      Boolean?          @default(false)
+  minSelect       Int?              @default(0)
+  maxSelect       Int?              @default(1)
+  sortOrder       Int?              @default(0)
+  isActive        Boolean?          @default(true)
+  createDate      DateTime?         @default(now()) @db.Timestamp(6)
+  createUser      String?           @db.VarChar(100)
+  lastDate        DateTime?         @db.Timestamp(6)
+  lastUser        String?           @db.VarChar(100)
+  menuOptionGroup menuOptionGroup[]
+  optionItem      optionItem[]
+  orderItemOption orderItemOption[]
 }
 
-model Customer {
-  userId      String   @id @db.VarChar(120)
-  displayName String?  @db.VarChar(200)
-  pictureUrl  String?  @db.VarChar(1000)
-  firstSeenAt DateTime @default(now())
-  lastSeenAt  DateTime @default(now())
-
-  @@map("dev_cafe_customers")
+model optionItem {
+  optionItemId    Int               @id @default(autoincrement())
+  optionGroupId   Int
+  optionItemName  String            @db.VarChar(100)
+  extraPrice      Decimal           @default(0) @db.Decimal(10, 2)
+  sortOrder       Int?              @default(0)
+  isActive        Boolean?          @default(true)
+  createDate      DateTime?         @default(now()) @db.Timestamp(6)
+  createUser      String?           @db.VarChar(100)
+  lastDate        DateTime?         @db.Timestamp(6)
+  lastUser        String?           @db.VarChar(100)
+  optionGroup     optionGroup       @relation(fields: [optionGroupId], references: [optionGroupId], onDelete: NoAction, onUpdate: NoAction, map: "fk_optionItem_optionGroup")
+  orderItemOption orderItemOption[]
 }
 
-model Setting {
-  key       String   @id @db.VarChar(120)
-  value     String?  @db.Text
-  updatedAt DateTime @updatedAt
+model orderHeader {
+  orderId        Int         @id @default(autoincrement())
+  orderNo        String      @unique @db.VarChar(50)
+  orderType      String?     @default("TAKEAWAY") @db.VarChar(30)
+  orderStatus    String?     @default("PENDING") @db.VarChar(30)
+  customerName   String?     @db.VarChar(150)
+  customerPhone  String?     @db.VarChar(50)
+  subtotalAmount Decimal     @default(0) @db.Decimal(10, 2)
+  discountAmount Decimal     @default(0) @db.Decimal(10, 2)
+  totalAmount    Decimal     @default(0) @db.Decimal(10, 2)
+  paymentMethod  String?     @db.VarChar(50)
+  paymentStatus  String?     @default("UNPAID") @db.VarChar(30)
+  remark         String?
+  createDate     DateTime?   @default(now()) @db.Timestamp(6)
+  createUser     String?     @db.VarChar(100)
+  lastDate       DateTime?   @db.Timestamp(6)
+  lastUser       String?     @db.VarChar(100)
+  userId         Int?
+  user           user?       @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderHeader_user")
+  orderItem      orderItem[]
+}
 
-  @@map("dev_cafe_settings")
+model orderItem {
+  orderItemId      Int               @id @default(autoincrement())
+  orderId          Int
+  menuId           Int
+  menuName         String            @db.VarChar(150)
+  basePrice        Decimal           @default(0) @db.Decimal(10, 2)
+  quantity         Int               @default(1)
+  optionExtraPrice Decimal           @default(0) @db.Decimal(10, 2)
+  unitPrice        Decimal           @default(0) @db.Decimal(10, 2)
+  totalPrice       Decimal           @default(0) @db.Decimal(10, 2)
+  remark           String?
+  menu             menu              @relation(fields: [menuId], references: [menuId], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderItem_menu")
+  orderHeader      orderHeader       @relation(fields: [orderId], references: [orderId], onDelete: Cascade, onUpdate: NoAction, map: "fk_orderItem_orderHeader")
+  orderItemOption  orderItemOption[]
+}
+
+model orderItemOption {
+  orderItemOptionId Int         @id @default(autoincrement())
+  orderItemId       Int
+  optionGroupId     Int
+  optionGroupName   String      @db.VarChar(100)
+  optionItemId      Int
+  optionItemName    String      @db.VarChar(100)
+  extraPrice        Decimal     @default(0) @db.Decimal(10, 2)
+  optionGroup       optionGroup @relation(fields: [optionGroupId], references: [optionGroupId], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderItemOption_optionGroup")
+  optionItem        optionItem  @relation(fields: [optionItemId], references: [optionItemId], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderItemOption_optionItem")
+  orderItem         orderItem   @relation(fields: [orderItemId], references: [orderItemId], onDelete: Cascade, onUpdate: NoAction, map: "fk_orderItemOption_orderItem")
+}
+
+model subCategory {
+  subCategoryId   Int       @id @default(autoincrement())
+  categoryId      Int
+  subCategoryName String    @db.VarChar(100)
+  description     String?
+  sortOrder       Int?      @default(0)
+  isActive        Boolean?  @default(true)
+  createDate      DateTime? @default(now()) @db.Timestamp(6)
+  createUser      String?   @db.VarChar(100)
+  lastDate        DateTime? @db.Timestamp(6)
+  lastUser        String?   @db.VarChar(100)
+  menu            menu[]
+  category        category  @relation(fields: [categoryId], references: [categoryId], onDelete: NoAction, onUpdate: NoAction, map: "fk_subCategory_category")
+}
+
+model user {
+  userId      Int           @id @default(autoincrement())
+  lineToken   String        @unique @db.VarChar(255)
+  name        String        @db.VarChar(150)
+  isActive    Boolean?      @default(true)
+  createDate  DateTime?     @default(now()) @db.Timestamp(6)
+  createUser  String?       @db.VarChar(100)
+  lastDate    DateTime?     @db.Timestamp(6)
+  lastUser    String?       @db.VarChar(100)
+  orderHeader orderHeader[]
 }

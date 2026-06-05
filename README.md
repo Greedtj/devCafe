@@ -22,7 +22,7 @@ LINE LIFF ordering app for a cafe, backed by Vercel Functions, Prisma, and Postg
 Create root `.env` for local API and Prisma:
 
 ```env
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/dev_cafe?schema=public"
+DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@127.0.0.1:5432/dev_cafe?schema=public"
 LINE_CHANNEL_ACCESS_TOKEN="YOUR_LINE_MESSAGING_API_TOKEN"
 ```
 
@@ -38,7 +38,7 @@ VITE_BASE_PATH=/
 
 ## Local Setup
 
-Make sure PostgreSQL is running locally and listening on `localhost:5432`.
+Make sure PostgreSQL is running locally and listening on `127.0.0.1:5432`.
 
 Create the database once if it does not exist:
 
@@ -64,14 +64,18 @@ http://localhost:5173/admin.html
 
 ## Database Tables
 
-Prisma creates these PostgreSQL tables:
+The app now maps to the normalized PostgreSQL schema:
 
-- `dev_cafe_menu`
-- `dev_cafe_options`
-- `dev_cafe_orders`
-- `dev_cafe_order_items`
-- `dev_cafe_customers`
-- `dev_cafe_settings`
+- `category`
+- `subCategory`
+- `menu`
+- `optionGroup`
+- `optionItem`
+- `menuOptionGroup`
+- `user`
+- `orderHeader`
+- `orderItem`
+- `orderItemOption`
 
 ## API Contract
 

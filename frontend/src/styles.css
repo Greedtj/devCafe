@@ -16,9 +16,9 @@ body,
 body {
   @apply bg-brand-50 text-stone-900 antialiased;
   background:
-    radial-gradient(circle at top left, rgba(192, 107, 52, 0.18), transparent 30%),
-    radial-gradient(circle at top right, rgba(138, 79, 42, 0.14), transparent 26%),
-    linear-gradient(180deg, #fff9f2 0%, #fbf4ee 100%);
+    linear-gradient(135deg, rgba(224, 195, 117, 0.18) 0 25%, transparent 25% 50%, rgba(246, 157, 57, 0.12) 50% 75%, transparent 75%),
+    linear-gradient(180deg, #fff5e5 0%, #fff9ef 42%, #fff5e5 100%);
+  background-size: 28px 28px, auto;
 }
 
 ::selection {

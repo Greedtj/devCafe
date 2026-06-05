@@ -31,7 +31,13 @@ function devCafeApiMiddleware() {
     name: "dev-cafe-api-middleware",
     configureServer(server) {
       const { handleDevCafeApi } = require("../api/_dev-cafe-handler.cjs");
-      server.middlewares.use("/api/dev-cafe", handleDevCafeApi);
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.startsWith("/api/dev-cafe")) {
+          void handleDevCafeApi(req, res);
+          return;
+        }
+        next();
+      });
     },
   };
 }
