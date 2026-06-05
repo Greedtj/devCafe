@@ -6,6 +6,7 @@ import { useCafeStore } from "./stores/cafe";
 const store = useCafeStore();
 const checkoutOpen = ref(false);
 const productOpen = ref(false);
+const basePath = import.meta.env.BASE_URL || "/";
 
 const categories = computed(() => {
   const categoryNames = new Map(store.catalogCategories.map((item) => [String(item.id), item.name]));
@@ -93,7 +94,7 @@ async function tryInitLiff() {
         </p>
       </div>
       <a
-        href="/admin.html"
+        :href="`${basePath}admin.html`"
         class="inline-flex h-12 items-center justify-center rounded-full border border-stone-200 bg-white/80 px-4 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
       >
         ไปหน้าแอดมิน

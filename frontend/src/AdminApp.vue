@@ -7,6 +7,7 @@ const saving = ref(false);
 const activeTab = ref("menu"); // 'menu', 'options', 'orders'
 const selectedId = ref(null);
 const selectedGroup = ref(null);
+const basePath = import.meta.env.BASE_URL || "/";
 const enabledBadgeClass = "bg-emerald-100 text-emerald-800";
 const disabledBadgeClass = "bg-stone-200 text-stone-600";
 const enabledSelectClass = "bg-emerald-50 text-emerald-800";
@@ -252,7 +253,7 @@ async function save() {
         </nav>
       </div>
       <div class="flex items-center gap-4">
-        <a href="/index.html" target="_blank" class="text-sm font-medium text-stone-400 hover:text-stone-600 flex items-center gap-1">
+        <a :href="`${basePath}index.html`" target="_blank" class="text-sm font-medium text-stone-400 hover:text-stone-600 flex items-center gap-1">
           <span>ดูหน้าเว็บลูกค้า</span>
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
