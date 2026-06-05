@@ -15,10 +15,7 @@ body,
 
 body {
   @apply bg-brand-50 text-stone-900 antialiased;
-  background:
-    linear-gradient(135deg, rgba(224, 195, 117, 0.18) 0 25%, transparent 25% 50%, rgba(246, 157, 57, 0.12) 50% 75%, transparent 75%),
-    linear-gradient(180deg, #fff5e5 0%, #fff9ef 42%, #fff5e5 100%);
-  background-size: 28px 28px, auto;
+  background: linear-gradient(180deg, #fff5e5 0%, #fff9ef 42%, #fff5e5 100%);
 }
 
 ::selection {
